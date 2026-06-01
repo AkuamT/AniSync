@@ -1,7 +1,10 @@
 import aiosqlite
 import os
 
-DATABASE_URL = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "anisync.db")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "anisync.db"),
+)
 
 async def get_db():
     db = await aiosqlite.connect(DATABASE_URL)
@@ -39,5 +42,11 @@ async def init_db():
         # watching / completed 保持不变
         await db.execute("UPDATE anime SET status = 'plan' WHERE status = 'want_to_watch'")
         await db.execute("UPDATE anime SET status = 'plan' WHERE status = 'dropped'")
+
+        # 安全迁移：为旧数据库添加 total_episodes 列（新库已含该列，忽略异常）
+        try:
+            await db.execute("ALTER TABLE anime ADD COLUMN total_episodes INTEGER DEFAULT 0")
+        except Exception:
+            pass  # 列已存在，跳过
 
         await db.commit()

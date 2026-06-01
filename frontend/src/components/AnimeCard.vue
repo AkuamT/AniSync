@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   anime: { type: Object, required: true },
 })
@@ -19,6 +21,10 @@ function progressPercent() {
   if (!props.anime.total_episodes) return 0
   return Math.min(100, (props.anime.current_episode / props.anime.total_episodes) * 100)
 }
+
+const isCompleted = computed(() =>
+  props.anime.total_episodes > 0 && props.anime.current_episode >= props.anime.total_episodes
+)
 </script>
 
 <template>
@@ -39,14 +45,14 @@ function progressPercent() {
       </div>
       <div class="anime-progress">
         <div class="progress-text">
-          {{ anime.current_episode }} / {{ anime.total_episodes || '?' }} 集
+          当前: {{ anime.current_episode }} / {{ anime.total_episodes || '?' }} 集
         </div>
         <div v-if="anime.total_episodes > 0" class="progress-bar">
           <div class="progress-fill" :style="{ width: progressPercent() + '%' }"></div>
         </div>
       </div>
       <div class="anime-actions">
-        <button class="btn-plus" @click="emit('plus-one', anime)">+1 集</button>
+        <button class="btn-plus" :disabled="isCompleted" @click="emit('plus-one', anime)">+1 集</button>
         <button class="btn-delete" @click="emit('delete', anime)">删除</button>
       </div>
     </div>
@@ -140,6 +146,11 @@ function progressPercent() {
 }
 .btn-plus:hover {
   background: var(--accent-hover);
+}
+.btn-plus:disabled {
+  background: var(--border);
+  color: var(--text-secondary);
+  cursor: not-allowed;
 }
 .btn-delete {
   background: none;
