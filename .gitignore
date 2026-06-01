@@ -1,0 +1,17 @@
+# 前端依赖与构建产物
+frontend/node_modules/
+frontend/dist/
+frontend/.npm/
+
+# 后端虚拟环境与缓存
+backend/venv/
+backend/__pycache__/
+*.pyc
+
+# 数据库文件（通常本地测试数据不上传）
+*.db
+*.sqlite3
+
+# 系统与编辑器缓存
+.vscode/
+.DS_Store
