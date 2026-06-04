@@ -48,14 +48,14 @@ class TestHealthCheck:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Bangumi 搜索 (Jikan API 代理)
+# Bangumi 搜索 (Bangumi API 代理)
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestBangumiSearch:
     """GET /api/bangumi/search"""
 
-    def test_search_returns_results(self, client, mock_jikan):
-        """搜索接口应返回 Jikan API 的转换结果。"""
+    def test_search_returns_results(self, client, mock_bangumi):
+        """搜索接口应返回 Bangumi API 的转换结果。"""
         resp = client.get("/api/bangumi/search", params={"keyword": "one piece"})
         assert resp.status_code == 200
 
@@ -65,11 +65,11 @@ class TestBangumiSearch:
 
         first = data["results"][0]
         assert first["bangumi_id"] == 21
-        assert first["title"] == "ONE PIECE"
+        assert first["title"] == "海贼王"  # name_cn 优先
         assert "cover_url" in first
         assert "description" in first
 
-    def test_search_result_structure(self, client, mock_jikan):
+    def test_search_result_structure(self, client, mock_bangumi):
         """验证搜索结果的字段结构符合前端所需。"""
         resp = client.get("/api/bangumi/search", params={"keyword": "test"})
         first = resp.json()["results"][0]
@@ -77,7 +77,7 @@ class TestBangumiSearch:
         expected_keys = {"bangumi_id", "title", "cover_url", "description", "total_episodes", "air_date"}
         assert expected_keys.issubset(first.keys()), f"缺少字段: {expected_keys - first.keys()}"
 
-    def test_search_missing_keyword_returns_422(self, client, mock_jikan):
+    def test_search_missing_keyword_returns_422(self, client, mock_bangumi):
         """缺少 keyword 参数时应返回 422 校验错误。"""
         resp = client.get("/api/bangumi/search")
         assert resp.status_code == 422

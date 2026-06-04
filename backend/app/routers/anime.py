@@ -45,6 +45,15 @@ async def get_anime(anime_id: int, db: aiosqlite.Connection = Depends(get_db)):
 
 @router.post("", response_model=AnimeResponse, status_code=201)
 async def create_anime(anime: AnimeCreate, db: aiosqlite.Connection = Depends(get_db)):
+    # BUG-3 修复：检查 bangumi_id 是否已存在，防止重复添加
+    if anime.bangumi_id is not None:
+        cursor = await db.execute(
+            "SELECT id FROM anime WHERE bangumi_id = ?", (anime.bangumi_id,)
+        )
+        existing = await cursor.fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="该番剧已存在于你的列表中")
+
     cursor = await db.execute(
         """INSERT INTO anime (title, cover_url, description, total_episodes, current_episode, status, score, air_date, bangumi_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",

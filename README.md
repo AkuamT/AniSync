@@ -21,7 +21,7 @@
 
 | 功能 | 描述 |
 |:---|:---|
-| 🔍 **智能搜索** | 接入 Jikan API (MyAnimeList)，实时搜索海量番剧数据 |
+| 🔍 **智能搜索** | 接入 Bangumi API (bgm.tv)，实时搜索海量番剧数据 |
 | 📋 **状态管理** | 三态流转 —— `想看 (plan)` → `在看 (watching)` → `看完 (completed)` |
 | 📊 **进度追踪** | 可视化进度条，一键 "+1 集"，追番进度一目了然 |
 | 🎨 **现代 UI** | Apple 风格设计语言，响应式布局，流畅动效 |
@@ -51,7 +51,7 @@
 <tr>
 <td align="center"><b>数据源</b></td>
 <td>
-<img src="https://img.shields.io/badge/-Jikan%20API%20v4-2E51A7?logo=myanimelist&logoColor=white&style=flat-square" />
+<img src="https://img.shields.io/badge/-Bangumi%20API-ED6B8A?style=flat-square" />
 </td>
 </tr>
 </table>
@@ -115,6 +115,31 @@ npm run dev
 
 > 🟢 前端启动后，访问 `http://localhost:5173` 即可使用。
 
+### 4. 国内网络配置（重要）
+
+Bangumi API (`api.bgm.tv`) 及其图片 CDN (`lain.bgm.tv`) 在国内可能无法直接访问。项目已通过环境变量支持自定义代理地址。
+
+**方式一：Deno Deploy 反代（推荐，免费）**
+
+> 详细图文步骤见下方 [🔧 国内网络配置详解](#-国内网络配置详解) 章节。
+
+1. 注册 [Deno](https://deno.com)，在 Dashboard 创建一个 **Playground**
+2. 将 `backend/deno-proxy.js` 中的代码粘贴进去，点击 **Save & Deploy**
+3. 复制得到的域名（如 `xxx.deno.net`）
+4. 编辑项目根目录的 `.env` 文件：
+```bash
+BANGUMI_BASE_URL=https://xxx.deno.net
+```
+5. 重启后端即可
+
+**方式二：HTTP 代理**
+
+如果你的电脑已配置代理（VPN/Clash 等）：
+```bash
+# 启动后端时设置
+HTTPS_PROXY=http://127.0.0.1:7890 uvicorn app.main:app --reload --port 8080
+```
+
 ---
 
 ## 📁 项目结构
@@ -128,7 +153,7 @@ AniSync/
 │   │   ├── schemas.py          # Pydantic 数据模型 (请求/响应)
 │   │   └── routers/
 │   │       ├── anime.py        # 番剧 CRUD 路由 (/api/anime)
-│   │       └── bangumi.py      # Jikan API 代理路由 (/api/bangumi)
+│   │       └── bangumi.py      # Bangumi API 代理路由 (/api/bangumi)
 │   ├── tests/                  # 自动化测试
 │   │   ├── conftest.py         # Pytest fixtures & 测试数据库
 │   │   └── test_api.py         # API 接口测试用例
@@ -170,7 +195,7 @@ AniSync/
 
 | 方法 | 路径 | 描述 |
 |:---|:---|:---|
-| `GET` | `/api/bangumi/search?keyword={kw}` | 通过 Jikan API 搜索番剧 |
+| `GET` | `/api/bangumi/search?keyword={kw}` | 通过 Bangumi API 搜索番剧 |
 
 ### 状态枚举
 
@@ -215,6 +240,114 @@ pytest tests/ -v --tb=short
 - **API 调用**: 统一在 `src/api/index.js` 中封装
 - **组件开发**: 放置在 `src/components/` 目录
 - **样式规范**: 使用 CSS Custom Properties，参考 `style.css` 中的设计变量
+
+---
+
+---
+
+## 🔧 国内网络配置详解
+
+### 为什么需要配置
+
+Bangumi 的 API 服务器 (`api.bgm.tv`) 和图片 CDN (`lain.bgm.tv`) 位于境外，在国内网络环境下 TCP 连接会被阻断，导致搜索无结果、封面图片不显示。
+
+### Deno Deploy 反代搭建（5 分钟）
+
+> Deno Deploy 提供免费额度，国内可正常访问 `*.deno.net` 域名。
+
+**1. 注册 & 登录**
+
+打开 https://dash.deno.com → **Sign in with GitHub**（如无 GitHub 账号需先注册）
+
+**2. 创建 Playground**
+
+登录后点击右上角 **New Playground**，会打开在线代码编辑器。
+
+**3. 粘贴代理代码**
+
+清空编辑器中的示例代码，将 `backend/deno-proxy.js` 的**全部内容**粘贴进去：
+
+```typescript
+const BANGUMI_API = "https://api.bgm.tv";
+const IMG_CDN = "https://lain.bgm.tv";
+
+Deno.serve(async (req: Request) => {
+  const url = new URL(req.url);
+  const path = url.pathname;
+
+  // 图片代理：/img/... → lain.bgm.tv/...
+  if (path.startsWith("/img/")) {
+    const imgUrl = IMG_CDN + path.replace("/img", "");
+    try {
+      const imgResp = await fetch(imgUrl);
+      const headers = new Headers();
+      const ct = imgResp.headers.get("Content-Type");
+      if (ct) headers.set("Content-Type", ct);
+      headers.set("Access-Control-Allow-Origin", "*");
+      headers.set("Cache-Control", "public, max-age=86400");
+      return new Response(imgResp.body, { status: imgResp.status, headers });
+    } catch (e) {
+      return new Response(null, { status: 502 });
+    }
+  }
+
+  // API 代理：/v0/... → api.bgm.tv/v0/...
+  const targetUrl = BANGUMI_API + path + url.search;
+
+  try {
+    const resp = await fetch(targetUrl, {
+      method: req.method,
+      headers: {
+        "User-Agent": "Akuam/AniSync-App (https://github.com/akuam/AniSync)",
+        "Content-Type": "application/json",
+      },
+      body: req.method === "POST" ? await req.text() : undefined,
+    });
+
+    let body = await resp.text();
+
+    // 将响应中的 lain.bgm.tv 图片链接替换为代理链接
+    body = body.replaceAll("https://lain.bgm.tv", url.origin + "/img");
+
+    return new Response(body, {
+      status: resp.status,
+      headers: {
+        "Content-Type": resp.headers.get("Content-Type") || "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: "代理请求失败", detail: String(e) }),
+      { status: 502, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+**4. 部署 & 获取域名**
+
+点击右上角 **Save & Deploy**，部署成功后页面会显示你的代理域名，格式如：
+```
+https://near-lorikeet-74.akuamt.deno.net
+```
+
+**5. 配置项目**
+
+编辑项目根目录的 `.env` 文件，填入你的代理域名：
+```bash
+BANGUMI_BASE_URL=https://你的域名.deno.net
+```
+
+**6. 重启后端**，搜索功能和封面图片即可正常使用。
+
+### 环境变量参考
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `BANGUMI_BASE_URL` | Bangumi API 反代地址 | `https://api.bgm.tv` |
+| `HTTPS_PROXY` | HTTP 代理地址 | 无 |
+| `DATABASE_URL` | SQLite 数据库路径 | `data/anisync.db` |
 
 ---
 

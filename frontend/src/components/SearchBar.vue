@@ -8,16 +8,26 @@ const keyword = ref('')
 const results = ref([])
 const searching = ref(false)
 const showResults = ref(false)
+const errorMsg = ref('')
+
+// BUG-5 修复：搜索防抖
+let searchTimer = null
+function debounceSearch() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(handleSearch, 500)
+}
 
 async function handleSearch() {
   const q = keyword.value.trim()
   if (!q) return
   searching.value = true
   showResults.value = true
+  errorMsg.value = ''
   try {
     results.value = await searchBangumi(q)
-  } catch {
-    alert('搜索失败，请检查后端是否运行')
+  } catch (e) {
+    // BUG-8 修复：展示具体错误信息
+    errorMsg.value = e?.response?.data?.detail || e?.message || '搜索失败，请检查后端是否运行'
     results.value = []
   } finally {
     searching.value = false
@@ -43,6 +53,7 @@ function addAnime(item) {
         v-model="keyword"
         placeholder="搜索番剧..."
         @keyup.enter="handleSearch"
+        @input="debounceSearch"
       />
       <button class="btn-primary" @click="handleSearch" :disabled="searching">
         {{ searching ? '搜索中...' : '搜索' }}
@@ -54,12 +65,19 @@ function addAnime(item) {
         <h3>搜索结果</h3>
         <button class="btn-ghost" @click="close">关闭</button>
       </div>
-      <div v-if="results.length === 0 && !searching" class="empty">
+      <div v-if="errorMsg" class="empty error">{{ errorMsg }}</div>
+      <div v-else-if="results.length === 0 && !searching" class="empty">
         未找到相关番剧，换个名字试试吧~
       </div>
       <div class="result-grid">
         <div v-for="item in results" :key="item.bangumi_id" class="result-card">
-          <img :src="item.cover_url" :alt="item.title" class="result-cover" />
+          <!-- BUG-6 修复：图片加载失败时显示占位 -->
+          <img
+            :src="item.cover_url"
+            :alt="item.title"
+            class="result-cover"
+            @error="(e) => e.target.style.display = 'none'"
+          />
           <div class="result-info">
             <div class="result-title">{{ item.title }}</div>
             <div class="result-meta">
@@ -188,5 +206,8 @@ function addAnime(item) {
   padding: 32px 0;
   color: var(--text-secondary);
   font-size: 14px;
+}
+.empty.error {
+  color: var(--danger);
 }
 </style>

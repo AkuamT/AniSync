@@ -80,34 +80,36 @@ def client():
 
 
 @pytest.fixture
-def mock_jikan():
+def mock_bangumi():
     """
-    Mock Jikan API 的 HTTP 调用，返回可控的测试数据。
+    Mock Bangumi API 的 HTTP 调用，返回可控的测试数据。
     """
     from unittest.mock import patch, AsyncMock, MagicMock
 
     fake_response = MagicMock()
     fake_response.raise_for_status = MagicMock()
     fake_response.json.return_value = {
+        "total": 1,
+        "limit": 10,
+        "offset": 0,
         "data": [
             {
-                "mal_id": 21,
-                "title": "ONE PIECE",
+                "id": 21,
+                "name": "ONE PIECE",
+                "name_cn": "海贼王",
                 "images": {
-                    "jpg": {
-                        "image_url": "https://cdn.myanimelist.net/images/anime/6/73245.jpg",
-                        "large_image_url": "https://cdn.myanimelist.net/images/anime/6/73245l.jpg",
-                    }
+                    "large": "https://lain.bgm.tv/pic/cover/l/abc123.jpg",
+                    "common": "https://lain.bgm.tv/pic/cover/c/abc123.jpg",
                 },
-                "synopsis": "Barely surviving in a barrel after passing through a terrible whirlpool...",
-                "episodes": 0,
-                "aired": {"from": "1999-10-20T00:00:00+00:00"},
+                "summary": "Barely surviving in a barrel after passing through a terrible whirlpool...",
+                "eps": 0,
+                "air_date": "1999-10-20",
             }
         ]
     }
 
     mock_instance = AsyncMock()
-    mock_instance.get = AsyncMock(return_value=fake_response)
+    mock_instance.post = AsyncMock(return_value=fake_response)
     mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
     mock_instance.__aexit__ = AsyncMock(return_value=False)
 

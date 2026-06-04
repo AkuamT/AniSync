@@ -54,8 +54,10 @@ async function handleAdd(item) {
     })
     await loadList()
     showToast(`已添加「${item.title}」`)
-  } catch {
-    showToast('添加失败')
+  } catch (e) {
+    // BUG-8 修复：展示具体错误信息（如重复添加 409）
+    const msg = e?.response?.data?.detail || e?.message || '添加失败'
+    showToast(`添加失败：${msg}`)
   }
 }
 
