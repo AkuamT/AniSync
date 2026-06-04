@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/anime.dart';
@@ -6,11 +7,12 @@ import '../providers/theme_provider.dart';
 import '../widgets/anime_card.dart';
 import 'search_page.dart';
 
-/// 主页面 - 追番列表
+/// 主页面 - 追番列表（二次元沉浸风格）
 ///
 /// 架构说明：
-/// - 顶层容器负责 Tab 切换、响应式布局、空状态处理
-/// - 底层 AnimeCard 纯展示，所有业务操作通过 Provider 回调完成
+/// - 全局渐变背景 + 暗色遮罩 + 毛玻璃卡片
+/// - 颜文字空状态与错误兜底
+/// - TabBar 使用 BackdropFilter 毛玻璃效果
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -34,7 +36,6 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    // 首次加载数据
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnimeProvider>().loadList();
     });
@@ -46,54 +47,171 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
-  /// 打开搜索页面，接收返回的状态信号以自动切换 Tab
   Future<void> _openSearch(BuildContext context) async {
     final result = await showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (_) => const SearchAnimePage(),
     );
-
-    // 添加成功返回 'plan'，自动切换到「想看」Tab
     if (result == 'plan' && mounted) {
       _tabController.animateTo(1);
     }
   }
 
+  /// 二次元风格背景渐变
+  LinearGradient _buildGradient(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      return const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF1A0A2E), // 深紫
+          Color(0xFF0A0A14), // 近黑
+          Color(0xFF0F1A2E), // 深蓝
+          Color(0xFF1A0A2E), // 深紫
+        ],
+        stops: [0.0, 0.35, 0.7, 1.0],
+      );
+    }
+    return const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFFF5E6FA), // 淡紫
+        Color(0xFFE6F0FA), // 淡蓝
+        Color(0xFFFAE6F0), // 淡粉
+        Color(0xFFF5E6FA), // 淡紫
+      ],
+      stops: [0.0, 0.35, 0.7, 1.0],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('AniSync'),
-        actions: const [
-          _ThemeToggleButton(),
-          SizedBox(width: 4),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: _tabs,
-          labelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Stack(
+      children: [
+        // ── 全屏渐变背景 ──
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(gradient: _buildGradient(context)),
           ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-          labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          indicatorSize: TabBarIndicatorSize.label,
         ),
+        // ── 暗色遮罩（保证文字可读性）──
+        Positioned.fill(
+          child: Container(
+            color: isDark
+                ? Colors.black.withOpacity(0.15)
+                : Colors.white.withOpacity(0.1),
+          ),
+        ),
+        // ── 主内容 ──
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: const Text('AniSync'),
+            actions: const [
+              _ThemeToggleButton(),
+              SizedBox(width: 8),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.black.withOpacity(0.3)
+                            : Colors.white.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.white.withOpacity(0.5),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        tabs: _tabs,
+                        labelStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        labelPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        indicatorSize: TabBarIndicatorSize.label,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: _statuses
+                .map((status) => _AnimeGridPage(status: status))
+                .toList(),
+          ),
+          floatingActionButton: _GlowingFAB(
+            onPressed: () => _openSearch(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 发光 FAB（二次元风格）
+// ═══════════════════════════════════════════════════════════
+
+class _GlowingFAB extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _GlowingFAB({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withOpacity(0.35),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: scheme.primary.withOpacity(0.15),
+            blurRadius: 32,
+            spreadRadius: 6,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: _statuses
-            .map((status) => _AnimeGridPage(status: status))
-            .toList(),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openSearch(context),
+      child: FloatingActionButton.extended(
+        onPressed: onPressed,
         icon: const Icon(Icons.add_rounded),
         label: const Text('添加番剧'),
+        backgroundColor: scheme.primary,
+        foregroundColor: Colors.white,
       ),
     );
   }
@@ -103,10 +221,6 @@ class _HomePageState extends State<HomePage>
 // 主题切换按钮（带动画）
 // ═══════════════════════════════════════════════════════════
 
-/// 主题切换按钮
-///
-/// - 短按：light ↔ dark 快捷切换
-/// - 长按：弹出菜单，可选择 system / light / dark
 class _ThemeToggleButton extends StatelessWidget {
   const _ThemeToggleButton();
 
@@ -169,11 +283,14 @@ class _ThemeToggleButton extends StatelessWidget {
     showMenu<ThemeMode>(
       context: context,
       position: position,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       items: [
-        _themeMenuItem(context, theme, ThemeMode.system, '跟随系统', Icons.brightness_auto_rounded),
-        _themeMenuItem(context, theme, ThemeMode.light, '浅色模式', Icons.wb_sunny_rounded),
-        _themeMenuItem(context, theme, ThemeMode.dark, '深色模式', Icons.nightlight_rounded),
+        _themeMenuItem(context, theme, ThemeMode.system, '跟随系统',
+            Icons.brightness_auto_rounded),
+        _themeMenuItem(context, theme, ThemeMode.light, '浅色模式',
+            Icons.wb_sunny_rounded),
+        _themeMenuItem(context, theme, ThemeMode.dark, '深色模式',
+            Icons.nightlight_rounded),
       ],
     );
   }
@@ -224,7 +341,6 @@ class _ThemeToggleButton extends StatelessWidget {
 // 内部页面组件
 // ═══════════════════════════════════════════════════════════
 
-/// 某一状态分类下的番剧网格页
 class _AnimeGridPage extends StatelessWidget {
   final String status;
 
@@ -234,14 +350,12 @@ class _AnimeGridPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AnimeProvider>(
       builder: (context, provider, child) {
-        // 首次加载中（无数据时不支持下拉刷新，避免重复加载指示器）
         if (provider.isLoading && provider.animeList.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
         final list = provider.filteredByStatus(status);
 
-        // 有列表数据：GridView + 下拉刷新
         if (list.isNotEmpty) {
           return RefreshIndicator(
             onRefresh: provider.loadList,
@@ -266,8 +380,10 @@ class _AnimeGridPage extends StatelessWidget {
                     return AnimeCard(
                       anime: anime,
                       compact: isNarrow,
-                      onAddProgress: () => _handleAddProgress(context, provider, anime),
-                      onDelete: () => _showDeleteConfirm(context, provider, anime),
+                      onAddProgress: () =>
+                          _handleAddProgress(context, provider, anime),
+                      onDelete: () =>
+                          _showDeleteConfirm(context, provider, anime),
                       onCardTap: () {
                         debugPrint('[AnimeCard] Tapped: ${anime.title}');
                       },
@@ -279,8 +395,8 @@ class _AnimeGridPage extends StatelessWidget {
           );
         }
 
-        // 空状态 / 错误状态：使用可滚动容器，支持下拉刷新
-        final bool isError = provider.error != null && provider.animeList.isEmpty;
+        final bool isError =
+            provider.error != null && provider.animeList.isEmpty;
         return RefreshIndicator(
           onRefresh: provider.loadList,
           child: LayoutBuilder(
@@ -304,19 +420,13 @@ class _AnimeGridPage extends StatelessWidget {
     );
   }
 
-  /// 根据屏幕宽度计算网格单元最大宽度，实现响应式列数
   double _gridCellWidth(double screenWidth) {
-    // 手机竖屏 (≤500): 2列
     if (screenWidth <= 500) return screenWidth / 2 - 8;
-    // 小平板/手机横屏 (≤700): 3列
     if (screenWidth <= 700) return screenWidth / 3 - 12;
-    // 平板/桌面小窗口 (≤1100): 4列
     if (screenWidth <= 1100) return screenWidth / 4 - 14;
-    // 桌面宽屏: 5列
     return screenWidth / 5 - 16;
   }
 
-  /// +1 进度处理
   Future<void> _handleAddProgress(
     BuildContext context,
     AnimeProvider provider,
@@ -330,16 +440,22 @@ class _AnimeGridPage extends StatelessWidget {
     }
   }
 
-  /// 删除确认对话框
   void _showDeleteConfirm(
     BuildContext context,
     AnimeProvider provider,
     Anime anime,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        backgroundColor: isDark
+            ? const Color(0xFF12121F).withOpacity(0.95)
+            : Colors.white.withOpacity(0.95),
         title: const Text('确认删除'),
         content: Text('确定要删除「${anime.title}」吗？此操作不可撤销。'),
         actions: [
@@ -367,7 +483,7 @@ class _AnimeGridPage extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 空状态与错误状态
+// 颜文字空状态与错误状态
 // ═══════════════════════════════════════════════════════════
 
 class _EmptyState extends StatelessWidget {
@@ -375,39 +491,39 @@ class _EmptyState extends StatelessWidget {
 
   const _EmptyState({required this.status});
 
+  String get _kaomoji {
+    switch (status) {
+      case 'watching':
+        return 'ヾ(≧▽≦*)o';
+      case 'completed':
+        return '(｡♥‿♥｡)';
+      case 'plan':
+      default:
+        return '(ﾉ>ω<)ﾉ';
+    }
+  }
+
   String get _title {
     switch (status) {
       case 'watching':
-        return '暂无在看的番剧';
+        return '没有正在追的番';
       case 'completed':
-        return '暂无已看完的番剧';
+        return '还没有看完的番';
       case 'plan':
       default:
-        return '暂无想看的番剧';
+        return '列表空空如也';
     }
   }
 
   String get _subtitle {
     switch (status) {
       case 'watching':
-        return '开始追一部新番吧！点击右下角按钮添加。';
+        return '快去添加一部新番开始追吧！';
       case 'completed':
-        return '看完的番剧会出现在这里。';
+        return '看完的番剧会出现在这里，加油追番吧！';
       case 'plan':
       default:
-        return '把想看的番剧加入清单，不再错过佳作。';
-    }
-  }
-
-  IconData get _icon {
-    switch (status) {
-      case 'watching':
-        return Icons.play_circle_outline_rounded;
-      case 'completed':
-        return Icons.check_circle_outline_rounded;
-      case 'plan':
-      default:
-        return Icons.bookmark_border_rounded;
+        return '快去捕捉新番吧！';
     }
   }
 
@@ -422,16 +538,19 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _icon,
-              size: 64,
-              color: scheme.outline.withOpacity(0.4),
+            Text(
+              _kaomoji,
+              style: TextStyle(
+                fontSize: 48,
+                color: scheme.primary.withOpacity(0.6),
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               _title,
               style: textTheme.titleMedium?.copyWith(
-                color: scheme.outline,
+                color: scheme.onSurface.withOpacity(0.8),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -440,7 +559,7 @@ class _EmptyState extends StatelessWidget {
               _subtitle,
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
-                color: scheme.outline.withOpacity(0.7),
+                color: scheme.outline.withOpacity(0.8),
               ),
             ),
           ],
@@ -467,14 +586,17 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.cloud_off_rounded,
-              size: 64,
-              color: scheme.outline.withOpacity(0.5),
+            Text(
+              '(っ °Д °;)っ',
+              style: TextStyle(
+                fontSize: 48,
+                color: scheme.error.withOpacity(0.6),
+                height: 1.2,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
-              '加载失败',
+              '呀！后端君失联了',
               style: textTheme.titleMedium?.copyWith(
                 color: scheme.error,
                 fontWeight: FontWeight.w600,
@@ -482,7 +604,7 @@ class _ErrorState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              message,
+              '快去检查 Python 服务！\n$message',
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
                 color: scheme.outline.withOpacity(0.8),

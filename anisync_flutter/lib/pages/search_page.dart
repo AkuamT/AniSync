@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
@@ -5,10 +6,10 @@ import '../models/search_result.dart';
 import '../providers/anime_provider.dart';
 import '../utils/debounce.dart';
 
-/// 搜索并添加番剧页面
+/// 搜索并添加番剧页面（二次元风格）
 ///
 /// 设计策略：
-/// - 桌面端（宽屏 >700px）：居中对话框形式，最大宽度 600，圆角 16
+/// - 桌面端（宽屏 >700px）：居中对话框形式，最大宽度 600，圆角 24
 /// - 移动端（窄屏 ≤700px）：全屏形式，占据整个屏幕
 ///
 /// 交互：
@@ -33,11 +34,9 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
   @override
   void initState() {
     super.initState();
-    // 监听输入变化以控制清除按钮显示
     _searchController.addListener(() {
       if (mounted) setState(() {});
     });
-    // 清空上次搜索结果
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnimeProvider>().clearSearch();
       _focusNode.requestFocus();
@@ -52,7 +51,6 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
     super.dispose();
   }
 
-  /// 输入变化回调 —— 防抖搜索
   void _onSearchChanged(String value) {
     _debounce.run(() {
       if (mounted) {
@@ -61,7 +59,6 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
     });
   }
 
-  /// 一键清除搜索
   void _clearSearch() {
     _searchController.clear();
     _debounce.cancel();
@@ -72,6 +69,7 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 700;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -79,64 +77,85 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
           ? const EdgeInsets.symmetric(horizontal: 80, vertical: 48)
           : EdgeInsets.zero,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(isDesktop ? 16 : 0),
-        child: Container(
-          width: isDesktop ? 600 : double.infinity,
-          constraints: isDesktop
-              ? const BoxConstraints(maxHeight: 700)
-              : const BoxConstraints.expand(),
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('搜索番剧'),
-              leading: IconButton(
-                icon: Icon(
-                  isDesktop ? Icons.close_rounded : Icons.arrow_back_rounded,
+        borderRadius: BorderRadius.circular(isDesktop ? 24 : 0),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: isDesktop ? 16 : 0, sigmaY: isDesktop ? 16 : 0),
+          child: Container(
+            width: isDesktop ? 600 : double.infinity,
+            constraints: isDesktop
+                ? const BoxConstraints(maxHeight: 700)
+                : const BoxConstraints.expand(),
+            decoration: isDesktop
+                ? BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF12121F).withOpacity(0.92)
+                        : Colors.white.withOpacity(0.92),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.white.withOpacity(0.6),
+                      width: 0.5,
+                    ),
+                  )
+                : null,
+            child: Scaffold(
+              backgroundColor: isDesktop ? Colors.transparent : null,
+              appBar: AppBar(
+                title: const Text('搜索番剧'),
+                leading: IconButton(
+                  icon: Icon(
+                    isDesktop ? Icons.close_rounded : Icons.arrow_back_rounded,
+                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                onPressed: () => Navigator.pop(context),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
               ),
-              elevation: 0,
-            ),
-            body: Column(
-              children: [
-                // ── 搜索输入框 ──
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _focusNode,
-                    onChanged: _onSearchChanged,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: '输入番剧名称，如「进击的巨人」...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded),
-                              onPressed: _clearSearch,
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
+              body: Column(
+                children: [
+                  // ── 搜索输入框 ──
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _focusNode,
+                      onChanged: _onSearchChanged,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: '输入番剧名，如「进击的巨人」... o(*≧▽≦)ツ',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded),
+                                onPressed: _clearSearch,
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: isDark
+                            ? Colors.black.withOpacity(0.3)
+                            : Colors.grey.shade100,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // ── 分割线 ──
-                const Divider(height: 1),
+                  // ── 分割线 ──
+                  const Divider(height: 1),
 
-                // ── 结果列表 ──
-                Expanded(
-                  child: _buildResultArea(),
-                ),
-              ],
+                  // ── 结果列表 ──
+                  Expanded(
+                    child: _buildResultArea(),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -151,8 +170,8 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
         // 初始空状态
         if (_searchController.text.trim().isEmpty) {
           return const _CenterMessage(
-            icon: Icons.search_rounded,
-            message: '输入关键词开始搜索',
+            kaomoji: '(｡･ω･｡)ﾉ',
+            message: '输入关键词开始搜索吧~',
           );
         }
 
@@ -164,7 +183,7 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
         // 搜索出错
         if (provider.searchError != null) {
           return _CenterMessage(
-            icon: Icons.error_outline_rounded,
+            kaomoji: '(；´Д｀)',
             message: provider.searchError!,
             isError: true,
           );
@@ -173,8 +192,8 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
         // 无结果
         if (provider.searchResults.isEmpty) {
           return const _CenterMessage(
-            icon: Icons.sentiment_dissatisfied_rounded,
-            message: '未找到相关番剧',
+            kaomoji: '( ´･ω･`)',
+            message: '未找到相关番剧，换个关键词试试？',
           );
         }
 
@@ -221,11 +240,10 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
         msg: '「${result.title}」已添加到想看',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
-        backgroundColor: const Color(0xFF34C759),
+        backgroundColor: const Color(0xFF39C5BB),
         textColor: Colors.white,
         fontSize: 14,
       );
-      // 返回 'plan' 信号，让主页切换到「想看」Tab
       Navigator.pop(context, 'plan');
     } else {
       Fluttertoast.showToast(
@@ -244,14 +262,16 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
 // 内部辅助组件
 // ═══════════════════════════════════════════════════════════
 
-/// 居中的消息提示（空状态 / 错误状态）
+/// 居中的消息提示（颜文字版）
 class _CenterMessage extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? kaomoji;
   final String message;
   final bool isError;
 
   const _CenterMessage({
-    required this.icon,
+    this.icon,
+    this.kaomoji,
     required this.message,
     this.isError = false,
   });
@@ -267,7 +287,17 @@ class _CenterMessage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 48, color: color.withOpacity(0.5)),
+            if (kaomoji != null)
+              Text(
+                kaomoji!,
+                style: TextStyle(
+                  fontSize: 40,
+                  color: color.withOpacity(0.5),
+                  height: 1.2,
+                ),
+              )
+            else if (icon != null)
+              Icon(icon!, size: 48, color: color.withOpacity(0.5)),
             const SizedBox(height: 16),
             Text(
               message,
@@ -306,7 +336,7 @@ class _SearchResultTile extends StatelessWidget {
         children: [
           // ── 封面图 ──
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: _CoverImage(coverUrl: result.coverUrl),
           ),
           const SizedBox(width: 12),
@@ -357,6 +387,9 @@ class _SearchResultTile extends StatelessWidget {
                   vertical: 8,
                 ),
                 textStyle: const TextStyle(fontSize: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
         ],
@@ -427,7 +460,7 @@ class _Placeholder extends StatelessWidget {
       height: 64,
       decoration: BoxDecoration(
         color: scheme.outline.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(
         Icons.movie_outlined,

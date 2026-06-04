@@ -1,7 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/anime.dart';
 
-/// 番剧卡片 - 纯 UI 展示组件
+/// 番剧卡片 - 纯 UI 展示组件（二次元毛玻璃风格）
 ///
 /// 架构约束：
 /// - 纯 StatelessWidget，不持有任何业务状态
@@ -48,7 +49,7 @@ class AnimeCard extends StatelessWidget {
     final bool isFullyWatched =
         anime.totalEpisodes > 0 && anime.currentEpisode >= anime.totalEpisodes;
 
-    return _HoverableCard(
+    return _GlassCard(
       onTap: onCardTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,7 +58,7 @@ class AnimeCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               child: SizedBox(
                 width: double.infinity,
                 child: _CoverImage(coverUrl: anime.coverUrl),
@@ -106,7 +107,7 @@ class AnimeCard extends StatelessWidget {
 
                 // 进度条
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: anime.totalEpisodes > 0
                         ? (anime.currentEpisode / anime.totalEpisodes)
@@ -130,7 +131,7 @@ class AnimeCard extends StatelessWidget {
                               label: '已看完',
                               onTap: null,
                               backgroundColor:
-                                  scheme.secondary.withOpacity(0.1),
+                                  scheme.secondary.withOpacity(0.15),
                               foregroundColor: scheme.secondary,
                               compact: compact,
                             )
@@ -148,7 +149,7 @@ class AnimeCard extends StatelessWidget {
                     _ActionButton(
                       icon: Icons.delete_outline_rounded,
                       onTap: onDelete,
-                      backgroundColor: scheme.error.withOpacity(0.1),
+                      backgroundColor: scheme.error.withOpacity(0.15),
                       foregroundColor: scheme.error,
                       compact: compact,
                     ),
@@ -167,67 +168,87 @@ class AnimeCard extends StatelessWidget {
 // 内部辅助组件
 // ═══════════════════════════════════════════════════════════
 
-/// 带悬停动效的卡片包装器
+/// 二次元毛玻璃卡片包装器
 ///
-/// 桌面端：鼠标悬停时阴影加深 + 轻微放大
-class _HoverableCard extends StatefulWidget {
+/// 使用 BackdropFilter + ImageFilter.blur 实现毛玻璃效果，
+/// 配合半透明底色和极细白边营造精致感。
+class _GlassCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
 
-  const _HoverableCard({required this.child, this.onTap});
+  const _GlassCard({required this.child, this.onTap});
 
   @override
-  State<_HoverableCard> createState() => _HoverableCardState();
+  State<_GlassCard> createState() => _GlassCardState();
 }
 
-class _HoverableCardState extends State<_HoverableCard>
+class _GlassCardState extends State<_GlassCard>
     with SingleTickerProviderStateMixin {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
+
+    // 毛玻璃底色：暗色下偏黑半透明，亮色下偏白半透明
+    final glassColor = isDark
+        ? Colors.black.withOpacity(0.35)
+        : Colors.white.withOpacity(0.55);
+    // 边框色：暗色下微白，亮色下更白
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.12)
+        : Colors.white.withOpacity(0.6);
+    final hoverBorderColor = isDark
+        ? scheme.primary.withOpacity(0.5)
+        : scheme.primary.withOpacity(0.4);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedScale(
-        scale: _hovered ? 1.02 : 1.0,
-        duration: const Duration(milliseconds: 200),
+        scale: _hovered ? 1.03 : 1.0,
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: _hovered
-                ? [
-                    BoxShadow(
-                      color: scheme.primary.withOpacity(0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : const [],
-          ),
-          child: Card(
-            elevation: 0,
-            margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: _hovered
-                    ? scheme.primary.withOpacity(0.3)
-                    : scheme.outline.withOpacity(0.5),
-                width: _hovered ? 1.5 : 1,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                color: glassColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _hovered ? hoverBorderColor : borderColor,
+                  width: _hovered ? 1.5 : 1,
+                ),
+                boxShadow: _hovered
+                    ? [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(isDark ? 0.25 : 0.15),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
               ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: widget.onTap,
-              borderRadius: BorderRadius.circular(12),
-              hoverColor: scheme.primary.withOpacity(0.04),
-              child: widget.child,
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(20),
+                hoverColor: scheme.primary.withOpacity(0.06),
+                splashColor: scheme.primary.withOpacity(0.1),
+                child: widget.child,
+              ),
             ),
           ),
         ),
@@ -298,7 +319,7 @@ class _Placeholder extends StatelessWidget {
   }
 }
 
-/// 状态标签
+/// 状态标签（二次元风格小药丸）
 class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
@@ -310,11 +331,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: compact
-          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 1)
-          : const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3), width: 0.5),
       ),
       child: Text(
         label,
@@ -329,7 +351,7 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-/// 操作按钮
+/// 操作按钮（圆角更大，更活泼）
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String? label;
@@ -351,12 +373,12 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: backgroundColor,
-      borderRadius: BorderRadius.circular(compact ? 6 : 8),
+      borderRadius: BorderRadius.circular(compact ? 8 : 10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         hoverColor: onTap != null
-            ? foregroundColor.withOpacity(0.1)
+            ? foregroundColor.withOpacity(0.12)
             : Colors.transparent,
         child: Container(
           height: compact ? 32 : 36,
