@@ -13,12 +13,16 @@ class AnimeCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onCardTap;
 
+  /// 紧凑模式：窄屏 2 列布局下缩小间距和字号
+  final bool compact;
+
   const AnimeCard({
     super.key,
     required this.anime,
     this.onAddProgress,
     this.onDelete,
     this.onCardTap,
+    this.compact = false,
   });
 
   /// 根据状态返回主题色
@@ -63,7 +67,9 @@ class AnimeCard extends StatelessWidget {
 
           // ── 内容区（固定结构，不会溢出）──
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: compact
+                ? const EdgeInsets.fromLTRB(10, 8, 10, 10)
+                : const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -73,9 +79,11 @@ class AnimeCard extends StatelessWidget {
                   anime.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium,
+                  style: compact
+                      ? textTheme.titleSmall
+                      : textTheme.titleMedium,
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 4 : 6),
 
                 // 状态标签 + 进度文字
                 Row(
@@ -83,15 +91,18 @@ class AnimeCard extends StatelessWidget {
                     _StatusBadge(
                       label: anime.statusLabel,
                       color: statusColor,
+                      compact: compact,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       '${anime.currentEpisode}/${anime.totalEpisodes > 0 ? anime.totalEpisodes : '?'}',
-                      style: textTheme.bodySmall,
+                      style: compact
+                          ? textTheme.bodySmall?.copyWith(fontSize: 11)
+                          : textTheme.bodySmall,
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: compact ? 4 : 6),
 
                 // 进度条
                 ClipRRect(
@@ -103,10 +114,10 @@ class AnimeCard extends StatelessWidget {
                         : 0,
                     backgroundColor: scheme.outline.withOpacity(0.2),
                     valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                    minHeight: 4,
+                    minHeight: compact ? 3 : 4,
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: compact ? 8 : 10),
 
                 // 操作按钮区
                 Row(
@@ -121,6 +132,7 @@ class AnimeCard extends StatelessWidget {
                               backgroundColor:
                                   scheme.secondary.withOpacity(0.1),
                               foregroundColor: scheme.secondary,
+                              compact: compact,
                             )
                           : _ActionButton(
                               icon: Icons.add_rounded,
@@ -128,6 +140,7 @@ class AnimeCard extends StatelessWidget {
                               onTap: onAddProgress,
                               backgroundColor: scheme.primary,
                               foregroundColor: Colors.white,
+                              compact: compact,
                             ),
                     ),
                     const SizedBox(width: 8),
@@ -137,6 +150,7 @@ class AnimeCard extends StatelessWidget {
                       onTap: onDelete,
                       backgroundColor: scheme.error.withOpacity(0.1),
                       foregroundColor: scheme.error,
+                      compact: compact,
                     ),
                   ],
                 ),
@@ -288,13 +302,16 @@ class _Placeholder extends StatelessWidget {
 class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
+  final bool compact;
 
-  const _StatusBadge({required this.label, required this.color});
+  const _StatusBadge({required this.label, required this.color, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: compact
+          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 1)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(4),
@@ -303,7 +320,7 @@ class _StatusBadge extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: compact ? 10 : 11,
           fontWeight: FontWeight.w700,
           height: 1.4,
         ),
@@ -319,6 +336,7 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback? onTap;
   final Color backgroundColor;
   final Color foregroundColor;
+  final bool compact;
 
   const _ActionButton({
     required this.icon,
@@ -326,13 +344,14 @@ class _ActionButton extends StatelessWidget {
     this.onTap,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: backgroundColor,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(compact ? 6 : 8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -340,21 +359,21 @@ class _ActionButton extends StatelessWidget {
             ? foregroundColor.withOpacity(0.1)
             : Colors.transparent,
         child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: compact ? 32 : 36,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: foregroundColor),
+              Icon(icon, size: compact ? 14 : 16, color: foregroundColor),
               if (label != null) ...[
-                const SizedBox(width: 4),
+                SizedBox(width: compact ? 3 : 4),
                 Text(
                   label!,
                   style: TextStyle(
                     color: foregroundColor,
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: compact ? 12 : 13,
                   ),
                 ),
               ],

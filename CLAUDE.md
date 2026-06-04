@@ -24,7 +24,11 @@ cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8080   # Swagger docs at /docs
 pytest tests/ -v                            # Uses in-memory SQLite, no side effects
+pytest tests/test_api.py -k test_name -v    # Run a single test
 ```
+
+- `asyncio_mode = "auto"` is set in `pyproject.toml` — async test functions run automatically without `@pytest.mark.asyncio`
+- Tests use `dependency_overrides` on FastAPI's `get_db` to inject an in-memory SQLite connection shared across requests within each test
 
 ### Frontend (Vue 3 + Vite)
 ```bash

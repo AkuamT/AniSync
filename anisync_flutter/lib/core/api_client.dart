@@ -55,7 +55,13 @@ class ApiClient {
       case DioExceptionType.receiveTimeout:
         return '请求超时，服务器响应过慢';
       case DioExceptionType.connectionError:
-        return '无法连接服务器，请确认后端已启动';
+        return '无法连接到本地服务，请检查 Python 后端是否已启动';
+      case DioExceptionType.unknown:
+        final errorStr = e.error?.toString().toLowerCase() ?? '';
+        if (errorStr.contains('socket') || errorStr.contains('connection refused')) {
+          return '无法连接到本地服务，请检查 Python 后端是否已启动';
+        }
+        return '网络错误: ${e.message}';
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode;
         final detail = e.response?.data?['detail'];

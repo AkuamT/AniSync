@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/anime.dart';
 import '../providers/anime_provider.dart';
+import '../providers/theme_provider.dart';
 import '../widgets/anime_card.dart';
 import 'search_page.dart';
 
@@ -64,6 +65,10 @@ class _HomePageState extends State<HomePage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('AniSync'),
+        actions: const [
+          _ThemeToggleButton(),
+          SizedBox(width: 4),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: _tabs,
@@ -95,6 +100,127 @@ class _HomePageState extends State<HomePage>
 }
 
 // ═══════════════════════════════════════════════════════════
+// 主题切换按钮（带动画）
+// ═══════════════════════════════════════════════════════════
+
+/// 主题切换按钮
+///
+/// - 短按：light ↔ dark 快捷切换
+/// - 长按：弹出菜单，可选择 system / light / dark
+class _ThemeToggleButton extends StatelessWidget {
+  const _ThemeToggleButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, theme, child) {
+        final isDark = theme.isDark;
+        final icon = isDark ? Icons.wb_sunny_rounded : Icons.nightlight_rounded;
+        final tooltip = isDark ? '切换至浅色模式' : '切换至深色模式';
+
+        return GestureDetector(
+          onLongPress: () => _showThemeMenu(context, theme),
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: theme.toggle,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              transitionBuilder: (child, animation) {
+                return RotationTransition(
+                  turns: Tween<double>(begin: 0.75, end: 1.0).animate(animation),
+                  child: ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                  ),
+                );
+              },
+              child: Icon(
+                icon,
+                key: ValueKey<bool>(isDark),
+                size: 22,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showThemeMenu(BuildContext context, ThemeProvider theme) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final overlay = Navigator.of(context).overlay?.context.findRenderObject()
+        as RenderBox?;
+    if (renderBox == null || overlay == null) return;
+
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        renderBox.localToGlobal(Offset.zero, ancestor: overlay),
+        renderBox.localToGlobal(
+          renderBox.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<ThemeMode>(
+      context: context,
+      position: position,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        _themeMenuItem(context, theme, ThemeMode.system, '跟随系统', Icons.brightness_auto_rounded),
+        _themeMenuItem(context, theme, ThemeMode.light, '浅色模式', Icons.wb_sunny_rounded),
+        _themeMenuItem(context, theme, ThemeMode.dark, '深色模式', Icons.nightlight_rounded),
+      ],
+    );
+  }
+
+  PopupMenuItem<ThemeMode> _themeMenuItem(
+    BuildContext context,
+    ThemeProvider theme,
+    ThemeMode mode,
+    String label,
+    IconData icon,
+  ) {
+    final isSelected = theme.themeMode == mode;
+    final scheme = Theme.of(context).colorScheme;
+
+    return PopupMenuItem<ThemeMode>(
+      value: mode,
+      onTap: () => theme.setMode(mode),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: isSelected ? scheme.primary : scheme.outline,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              color: isSelected ? scheme.primary : scheme.onSurface,
+            ),
+          ),
+          const Spacer(),
+          if (isSelected)
+            Icon(
+              Icons.check_rounded,
+              size: 18,
+              color: scheme.primary,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // 内部页面组件
 // ═══════════════════════════════════════════════════════════
 
@@ -108,51 +234,71 @@ class _AnimeGridPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AnimeProvider>(
       builder: (context, provider, child) {
-        // 加载中
+        // 首次加载中（无数据时不支持下拉刷新，避免重复加载指示器）
         if (provider.isLoading && provider.animeList.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // 加载失败
-        if (provider.error != null && provider.animeList.isEmpty) {
-          return _ErrorState(
-            message: provider.error!,
-            onRetry: provider.loadList,
-          );
-        }
-
         final list = provider.filteredByStatus(status);
 
-        // 空状态
-        if (list.isEmpty) {
-          return _EmptyState(status: status);
-        }
+        // 有列表数据：GridView + 下拉刷新
+        if (list.isNotEmpty) {
+          return RefreshIndicator(
+            onRefresh: provider.loadList,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final isNarrow = w <= 500;
+                final padding = isNarrow ? 10.0 : 16.0;
+                final spacing = isNarrow ? 10.0 : 16.0;
 
-        // 响应式网格列表
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: _gridCellWidth(constraints.maxWidth),
-                childAspectRatio: 0.55,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: list.length,
-              itemBuilder: (context, index) {
-                final anime = list[index];
-                return AnimeCard(
-                  anime: anime,
-                  onAddProgress: () => _handleAddProgress(context, provider, anime),
-                  onDelete: () => _showDeleteConfirm(context, provider, anime),
-                  onCardTap: () {
-                    debugPrint('[AnimeCard] Tapped: ${anime.title}');
+                return GridView.builder(
+                  padding: EdgeInsets.all(padding),
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: _gridCellWidth(w),
+                    childAspectRatio: isNarrow ? 0.56 : 0.55,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                  ),
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final anime = list[index];
+                    return AnimeCard(
+                      anime: anime,
+                      compact: isNarrow,
+                      onAddProgress: () => _handleAddProgress(context, provider, anime),
+                      onDelete: () => _showDeleteConfirm(context, provider, anime),
+                      onCardTap: () {
+                        debugPrint('[AnimeCard] Tapped: ${anime.title}');
+                      },
+                    );
                   },
                 );
               },
-            );
-          },
+            ),
+          );
+        }
+
+        // 空状态 / 错误状态：使用可滚动容器，支持下拉刷新
+        final bool isError = provider.error != null && provider.animeList.isEmpty;
+        return RefreshIndicator(
+          onRefresh: provider.loadList,
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: isError
+                      ? _ErrorState(
+                          message: provider.error!,
+                          onRetry: provider.loadList,
+                        )
+                      : _EmptyState(status: status),
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -322,9 +468,9 @@ class _ErrorState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.error_outline_rounded,
+              Icons.cloud_off_rounded,
               size: 64,
-              color: scheme.error.withOpacity(0.5),
+              color: scheme.outline.withOpacity(0.5),
             ),
             const SizedBox(height: 16),
             Text(
