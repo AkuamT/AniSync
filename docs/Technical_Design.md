@@ -4,13 +4,13 @@
 
 ```
 ┌─────────────────────────────────────────────┐
-│                   前端 (Vue 3)               │
+│              客户端 (Flutter)                │
 │  ┌─────────┐  ┌──────────┐  ┌────────────┐  │
 │  │  番剧列表 │  │ 添加/编辑 │  │ 搜索番剧   │  │
 │  └────┬────┘  └────┬─────┘  └─────┬──────┘  │
 │       │            │              │          │
 │       └────────────┼──────────────┘          │
-│                    │ HTTP (Axios)            │
+│                    │ HTTP (Dio)              │
 └────────────────────┼────────────────────────┘
                      │
                      ▼
@@ -43,38 +43,33 @@
 
 ```
 AniSync/
-├── frontend/                    # 前端项目
-│   ├── public/
-│   ├── src/
-│   │   ├── api/                 # API 请求封装
-│   │   │   └── index.js
-│   │   ├── components/          # 通用组件
-│   │   │   ├── AnimeCard.vue
-│   │   │   ├── AnimeForm.vue
-│   │   │   ├── SearchModal.vue
-│   │   │   └── StatusFilter.vue
-│   │   ├── views/               # 页面视图
-│   │   │   └── Home.vue
-│   │   ├── App.vue
-│   │   └── main.js
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
+├── anisync_flutter/              # Flutter 客户端
+│   ├── lib/
+│   │   ├── core/                 # API 客户端 & 端点定义
+│   │   │   ├── api_client.dart
+│   │   │   └── api_endpoints.dart
+│   │   ├── models/               # 数据模型
+│   │   ├── pages/                # 页面
+│   │   ├── providers/            # 状态管理 (Provider)
+│   │   │   └── anime_provider.dart
+│   │   ├── widgets/              # 可复用组件
+│   │   ├── app_config.dart       # 多平台配置
+│   │   └── main.dart             # 应用入口
+│   ├── pubspec.yaml
+│   └── pubspec.lock
 │
 ├── backend/                     # 后端项目
 │   ├── app/
 │   │   ├── routers/             # API 路由
-│   │   │   ├── anime.py         # 番剧 CRUD
+│   │   │   ├── anime.py         # 番剧 CRUD & 导入导出
 │   │   │   └── bangumi.py       # 番剧搜索（Bangumi API 代理）
-│   │   ├── services/            # 业务逻辑
-│   │   │   ├── anime_service.py
-│   │   │   └── bangumi_service.py  # Bangumi API 调用
-│   │   ├── models.py            # 数据模型
+│   │   ├── services/            # 业务逻辑（预留）
 │   │   ├── schemas.py           # Pydantic Schema
 │   │   ├── database.py          # 数据库连接
 │   │   └── main.py              # 应用入口
+│   ├── tests/                   # 自动化测试
 │   ├── requirements.txt
-│   └── venv/
+│   └── deno-proxy.js            # Bangumi API Deno 反代脚本
 │
 ├── data/                        # 数据目录
 │   └── anisync.db               # SQLite 数据库
@@ -182,25 +177,36 @@ CREATE INDEX idx_anime_bangumi_id ON anime(bangumi_id);
 }
 ```
 
+### 4.3 数据导出/导入
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | `/api/anime/export/all` | 导出全部番剧数据（JSON） |
+| POST | `/api/anime/import` | 批量导入番剧数据 |
+
+> 导入时使用 bangumi_id 去重，已存在的条目会更新而非重复创建。
+
 ---
 
-## 5. 前端设计
+## 5. Flutter 客户端设计
 
 ### 5.1 状态管理
 
-不使用 Vuex/Pinia，使用 Vue 3 Composition API 的 `reactive` / `ref` 管理局部状态。
+使用 Provider + ChangeNotifier 管理全局状态。
 
 ### 5.2 组件结构
 
 ```
-App.vue
-└── Home.vue
-    ├── StatusFilter.vue      # 状态筛选标签
-    ├── SearchBar.vue         # 本地搜索框
-    ├── AnimeList.vue         # 番剧列表容器
-    │   └── AnimeCard.vue     # 单个番剧卡片
-    ├── AnimeForm.vue         # 添加/编辑表单
-    └── BangumiSearch.vue     # 番剧搜索弹窗（调用 Bangumi API）
+main.dart
+└── App (MaterialApp)
+    └── HomePage (TabBarView)
+        ├── WatchingTab
+        ├── PlanTab
+        ├── CompletedTab
+        └── SettingsPage
+            ├── ThemePicker
+            ├── ExportImportPanel
+            └── SortSettings
 ```
 
 ### 5.3 关键交互流程
@@ -208,9 +214,8 @@ App.vue
 **添加番剧流程：**
 
 ```
-点击"添加番剧" → 弹出表单 → 点击"搜索番剧"
-→ 输入关键词 → 调用 Bangumi API → 显示搜索结果
-→ 点击结果自动填充表单 → 调整信息 → 保存
+点击 + FAB → 搜索页 → 输入关键词 → 调用 Bangumi API
+→ 显示搜索结果 → 点击结果 → 自动填充 → 确认添加
 ```
 
 ---
@@ -280,19 +285,15 @@ aiosqlite==0.20.0
 httpx==0.27.0
 ```
 
-### 前端 package.json 核心依赖
+### Flutter pubspec.yaml 核心依赖
 
-```json
-{
-    "dependencies": {
-        "vue": "^3.4.0",
-        "axios": "^1.7.0"
-    },
-    "devDependencies": {
-        "@vitejs/plugin-vue": "^5.0.0",
-        "vite": "^5.4.0"
-    }
-}
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.0.0
+  provider: ^6.0.0
+  shared_preferences: ^2.0.0
 ```
 
 ---
@@ -307,11 +308,12 @@ source venv/Scripts/activate   # Windows Git Bash
 uvicorn app.main:app --reload --port 8080
 ```
 
-### 前端启动
+### Flutter 客户端启动
 
 ```bash
-cd frontend
-npm run dev    # 默认端口 5173
+cd anisync_flutter
+flutter pub get
+flutter run                    # 连接设备或模拟器
 ```
 
 ### CORS 配置
@@ -347,9 +349,9 @@ BANGUMI_BASE_URL=https://你的代理.deno.net
 | 阶段 | 内容 | 预计时间 |
 |------|------|----------|
 | Phase 1 | 项目初始化 + 数据库 + CRUD API | 1天 |
-| Phase 2 | 前端页面 + 番剧列表 + 增删改查 | 1天 |
+| Phase 2 | Flutter 客户端 + 番剧列表 + 增删改查 | 2天 |
 | Phase 3 | Bangumi API 搜索 + 自动填充 | 1天 |
-| Phase 4 | 进度追踪 + 状态管理 | 0.5天 |
+| Phase 4 | 进度追踪 + 导入导出 + 状态管理 | 1天 |
 | Phase 5 | 测试 + 联调 + 修复 | 0.5天 |
 
-**MVP 总计：约 4 天**
+**MVP 总计：约 5.5 天**

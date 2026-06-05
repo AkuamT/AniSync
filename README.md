@@ -7,8 +7,8 @@
 让你的追番体验像呼吸一样自然
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?style=flat-square&logo=vue.js&logoColor=white)](https://vuejs.org)
-[![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=flat-square&logo=dart&logoColor=white)](https://dart.dev)
 [![SQLite](https://img.shields.io/badge/SQLite-aiosqlite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](#)
@@ -24,19 +24,21 @@
 | 🔍 **智能搜索** | 接入 Bangumi API (bgm.tv)，实时搜索海量番剧数据 |
 | 📋 **状态管理** | 三态流转 —— `想看 (plan)` → `在看 (watching)` → `看完 (completed)` |
 | 📊 **进度追踪** | 可视化进度条，一键 "+1 集"，追番进度一目了然 |
+| 📱 **跨平台** | Flutter 客户端，支持 Windows / Android / Web |
 | 🎨 **现代 UI** | Apple 风格设计语言，响应式布局，流畅动效 |
-| ⚡ **前后端分离** | Vue 3 SPA + FastAPI REST API，独立开发部署 |
+| 💾 **导入导出** | 支持导出/导入追番数据，多端同步无忧 |
 | 🗄️ **轻量存储** | SQLite 文件数据库，零配置，开箱即用 |
 
 ## 🛠️ 技术栈
 
 <table>
 <tr>
-<td align="center"><b>前端</b></td>
+<td align="center"><b>客户端</b></td>
 <td>
-<img src="https://img.shields.io/badge/-Vue%203-4FC08D?logo=vue.js&logoColor=white&style=flat-square" />
-<img src="https://img.shields.io/badge/-Vite-646CFF?logo=vite&logoColor=white&style=flat-square" />
-<img src="https://img.shields.io/badge/-Axios-5A29E4?logo=axios&logoColor=white&style=flat-square" />
+<img src="https://img.shields.io/badge/-Flutter-02569B?logo=flutter&logoColor=white&style=flat-square" />
+<img src="https://img.shields.io/badge/-Dart-0175C2?logo=dart&logoColor=white&style=flat-square" />
+<img src="https://img.shields.io/badge/-Dio-0175C2?style=flat-square" />
+<img src="https://img.shields.io/badge/-Provider-0175C2?style=flat-square" />
 </td>
 </tr>
 <tr>
@@ -63,8 +65,8 @@
 ### 环境要求
 
 - **Python** 3.11+
-- **Node.js** 18+
-- **npm** 9+
+- **Flutter** 3.x+
+- **Dart** 3.x+
 
 ### 1. 克隆项目
 
@@ -100,20 +102,23 @@ uvicorn app.main:app --reload --port 8080
 
 > 🟢 后端启动后，访问 `http://localhost:8080/docs` 可查看 Swagger API 文档。
 
-### 3. 启动前端
+### 3. 启动 Flutter 客户端
 
 ```bash
-# 新开一个终端，进入前端目录
-cd frontend
+# 进入 Flutter 目录
+cd anisync_flutter
 
 # 安装依赖
-npm install
+flutter pub get
 
-# 启动开发服务器
-npm run dev
+# 运行 (连接设备或模拟器)
+flutter run
+
+# 构建 Windows 桌面版
+flutter build windows
 ```
 
-> 🟢 前端启动后，访问 `http://localhost:5173` 即可使用。
+> 🟢 Flutter 客户端支持 Windows / Android / Web。详情见 `anisync_flutter/README.md`。
 
 ### 4. 国内网络配置（重要）
 
@@ -158,17 +163,17 @@ AniSync/
 │   │   ├── conftest.py         # Pytest fixtures & 测试数据库
 │   │   └── test_api.py         # API 接口测试用例
 │   └── requirements.txt        # Python 依赖清单
-├── frontend/                   # 前端应用
-│   ├── src/
-│   │   ├── api/index.js        # Axios HTTP 客户端封装
-│   │   ├── App.vue             # 根组件 (状态管理 & 布局)
-│   │   ├── components/
-│   │   │   ├── AnimeCard.vue   # 番剧卡片组件
-│   │   │   └── SearchBar.vue   # 搜索栏组件
-│   │   ├── main.js             # Vue 应用入口
-│   │   └── style.css           # 全局样式 (Apple 风格)
-│   ├── package.json            # Node.js 依赖清单
-│   └── vite.config.js          # Vite 构建配置
+├── anisync_flutter/            # Flutter 客户端
+│   ├── lib/
+│   │   ├── app_config.dart     # 多平台配置
+│   │   ├── core/
+│   │   │   ├── api_client.dart # Dio HTTP 客户端封装
+│   │   │   └── api_endpoints.dart
+│   │   ├── providers/          # 状态管理
+│   │   ├── pages/              # 页面
+│   │   ├── widgets/            # 组件
+│   │   └── models/             # 数据模型
+│   └── pubspec.yaml            # Dart 依赖清单
 ├── data/                       # 运行时数据 (SQLite 数据库)
 │   └── anisync.db
 ├── docs/                       # 项目文档
@@ -191,11 +196,13 @@ AniSync/
 | `PUT` | `/api/anime/{id}` | 更新番剧信息（支持部分更新） |
 | `DELETE` | `/api/anime/{id}` | 删除番剧 |
 
-### 番剧搜索
+### 番剧搜索 & 数据同步
 
 | 方法 | 路径 | 描述 |
 |:---|:---|:---|
 | `GET` | `/api/bangumi/search?keyword={kw}` | 通过 Bangumi API 搜索番剧 |
+| `GET` | `/api/anime/export/all` | 导出全部番剧数据 (JSON) |
+| `POST` | `/api/anime/import` | 导入番剧数据 |
 
 ### 状态枚举
 
@@ -235,11 +242,11 @@ pytest tests/ -v --tb=short
 - **数据库变更**: 修改 `database.py` 中的 `init_db()` 函数
 - **数据校验**: 在 `schemas.py` 中定义 Pydantic 模型
 
-### 前端开发
+### Flutter 客户端开发
 
-- **API 调用**: 统一在 `src/api/index.js` 中封装
-- **组件开发**: 放置在 `src/components/` 目录
-- **样式规范**: 使用 CSS Custom Properties，参考 `style.css` 中的设计变量
+- **API 调用**: 统一在 `lib/core/api_client.dart` 中封装
+- **状态管理**: 使用 Provider + ChangeNotifier
+- **样式规范**: 参考 `app_theme.dart` 中的设计变量
 
 ---
 

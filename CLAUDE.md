@@ -10,7 +10,6 @@ AniSync is an anime tracking management system. Users search anime via the Bangu
 
 ```
 backend/          Python FastAPI async REST API + SQLite
-frontend/         Vue 3 SPA (Vite, Composition API, <script setup>)
 anisync_flutter/  Flutter client (Windows/Android/Web, Provider state management)
 data/             Runtime SQLite database (anisync.db)
 docs/             PRD and Technical Design (Chinese)
@@ -29,14 +28,6 @@ pytest tests/test_api.py -k test_name -v    # Run a single test
 
 - `asyncio_mode = "auto"` is set in `pyproject.toml` — async test functions run automatically without `@pytest.mark.asyncio`
 - Tests use `dependency_overrides` on FastAPI's `get_db` to inject an in-memory SQLite connection shared across requests within each test
-
-### Frontend (Vue 3 + Vite)
-```bash
-cd frontend
-npm install
-npm run dev       # Dev server at localhost:5173, proxies /api to backend:8080
-npm run build     # Production build to dist/
-```
 
 ### Flutter
 ```bash
@@ -60,15 +51,9 @@ docker-compose up                              # Production
 - **main.py** — FastAPI app entry, CORS middleware, `init_db()` on startup, health check at `/api/health`
 - **database.py** — aiosqlite, single `anime` table, `get_db()` async generator as FastAPI dependency, handles schema migrations in `init_db()`
 - **schemas.py** — `AnimeStatus` enum (`watching`/`plan`/`completed`), Pydantic models (`AnimeCreate`, `AnimeUpdate`, `AnimeResponse`)
-- **routers/anime.py** — CRUD at `/api/anime` with status filtering, title search, pagination
+- **routers/anime.py** — CRUD at `/api/anime` with status filtering, title search, pagination, export/import endpoints
 - **routers/bangumi.py** — Bangumi API v0 proxy at `/api/bangumi/search` (`POST /v0/search/subjects` on `api.bgm.tv`). Supports `BANGUMI_BASE_URL` env var for custom reverse proxy (e.g. Cloudflare Worker) and `HTTPS_PROXY` for HTTP proxy. In-memory LRU cache (128 entries, 60s TTL)
 - **services/** — Empty placeholder, all logic currently inline in routers
-
-### Frontend (`frontend/src/`)
-- **App.vue** — Root component managing ALL application state locally (no Vuex/Pinia): `animeList`, `loading`, `activeTab`, `toast`
-- **api/index.js** — Axios instance, conditional baseURL (production: `/` via nginx, dev: `http://127.0.0.1:8080`)
-- **components/AnimeCard.vue** — Card with cover, status dropdown, progress bar, +1/delete actions
-- **components/SearchBar.vue** — Search input + results panel via Bangumi proxy
 
 ### Flutter (`anisync_flutter/lib/`)
 - **app_config.dart** — Multi-platform base URL (Web, Windows, Android emulator, LAN)
@@ -85,13 +70,14 @@ docker-compose up                              # Production
 | POST | `/api/anime` | Add anime to list |
 | PUT | `/api/anime/{id}` | Update anime (progress, status) |
 | DELETE | `/api/anime/{id}` | Remove anime |
+| GET | `/api/anime/export/all` | Export all anime data (JSON) |
+| POST | `/api/anime/import` | Import anime data |
 
 ### Key Design Decisions
 - Three statuses simplified from PRD's four: `dropped` consolidated into `plan`; DB migration handles old values
-- No external state management in Vue — all state lives in `App.vue`
+- State management in Flutter uses Provider + ChangeNotifier pattern
 - SQLite database path defaults to `data/anisync.db` relative to project root (override via `DATABASE_URL` env var)
 - Apple-style design system across all clients (accent `#0071E3`, danger `#FF3B30`, success `#34C759`, background `#F5F5F7`)
-- Vite dev proxy and nginx production proxy both route `/api` to the backend on port 8080
 - Tests use FastAPI's sync `TestClient` with in-memory SQLite and mocked Bangumi HTTP calls
 - Bug fixes in code are annotated with comments like `BUG-3`, `BUG-5`, etc. — these document historical issues and their fixes; preserve them when editing
 - `api.bgm.tv` / `lain.bgm.tv` may be inaccessible from mainland China — set `BANGUMI_BASE_URL` env var to a Deno Deploy reverse proxy (see `backend/deno-proxy.js`), or set `HTTPS_PROXY` to route requests through a proxy. Detailed setup in README.md
