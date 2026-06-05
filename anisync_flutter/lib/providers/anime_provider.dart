@@ -226,6 +226,75 @@ class AnimeProvider extends ChangeNotifier {
     }
   }
 
+  /// -1 集 — 回退集数
+  Future<bool> minusOne(Anime anime) async {
+    if (anime.currentEpisode <= 0) return false;
+    final newEpisode = anime.currentEpisode - 1;
+    // 若从已完成退回，恢复为在看
+    final newStatus = anime.status == 'completed' ? 'watching' : anime.status;
+
+    try {
+      final updated = await _api.updateAnime(anime.id, {
+        'current_episode': newEpisode,
+        'status': newStatus,
+      });
+
+      final index = _animeList.indexWhere((a) => a.id == anime.id);
+      if (index != -1) {
+        _animeList[index] = updated;
+      }
+
+      if (newStatus != anime.status) {
+        _customOrders[anime.status]?.remove(anime.id);
+        _customOrders[newStatus]?.insert(0, updated.id);
+        await _saveOrder(anime.status);
+        await _saveOrder(newStatus);
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 跳转到指定集数 — 直接输入任意数值
+  Future<bool> setEpisode(Anime anime, int episode) async {
+    final newEpisode = episode.clamp(0, anime.totalEpisodes > 0 ? anime.totalEpisodes : episode);
+    final newStatus =
+        (anime.totalEpisodes > 0 && newEpisode >= anime.totalEpisodes)
+            ? 'completed'
+            : (newEpisode > 0 ? 'watching' : anime.status);
+
+    try {
+      final updated = await _api.updateAnime(anime.id, {
+        'current_episode': newEpisode,
+        if (newStatus != anime.status) 'status': newStatus,
+      });
+
+      final index = _animeList.indexWhere((a) => a.id == anime.id);
+      if (index != -1) {
+        _animeList[index] = updated;
+      }
+
+      if (newStatus != anime.status) {
+        _customOrders[anime.status]?.remove(anime.id);
+        _customOrders[newStatus]?.insert(0, updated.id);
+        await _saveOrder(anime.status);
+        await _saveOrder(newStatus);
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// 切换状态 — 原地更新
   Future<bool> changeStatus(Anime anime, String newStatus) async {
     final oldStatus = anime.status;

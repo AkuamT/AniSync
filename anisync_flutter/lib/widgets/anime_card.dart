@@ -18,6 +18,8 @@ import '../models/anime.dart';
 class AnimeCard extends StatefulWidget {
   final Anime anime;
   final VoidCallback? onAddProgress;
+  final VoidCallback? onSubtractProgress;
+  final ValueChanged<int>? onSetEpisode;
   final VoidCallback? onDelete;
   final VoidCallback? onCardTap;
   final bool compact;
@@ -26,6 +28,8 @@ class AnimeCard extends StatefulWidget {
     super.key,
     required this.anime,
     this.onAddProgress,
+    this.onSubtractProgress,
+    this.onSetEpisode,
     this.onDelete,
     this.onCardTap,
     this.compact = false,
@@ -69,6 +73,47 @@ class _AnimeCardState extends State<AnimeCard>
 
   void _onTapCancel() {
     _springController.animateTo(0, curve: Curves.easeOut);
+  }
+
+  /// 弹出集数选择器，支持直接输入任意数值
+  void _showEpisodePicker(BuildContext context) {
+    final ctrl = TextEditingController(
+      text: widget.anime.currentEpisode.toString(),
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('跳转到集数'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: widget.anime.totalEpisodes > 0
+                ? '共 ${widget.anime.totalEpisodes} 集'
+                : '总集数未知',
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final v = int.tryParse(ctrl.text);
+              if (v != null && v >= 0) {
+                widget.onSetEpisode?.call(v);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _statusColor(ColorScheme scheme) {
@@ -135,11 +180,12 @@ class _AnimeCardState extends State<AnimeCard>
                         child: _DeleteButton(onTap: widget.onDelete!),
                       ),
 
-                    // ── 装饰水印 — 角落大字号半透明 ──
+                    // ── 装饰水印 — 角落大字号半透明（IgnorePointer 防止遮挡删除按钮）──
                     Positioned(
                       top: widget.compact ? -8 : -12,
                       right: widget.compact ? -6 : -8,
-                      child: Opacity(
+                      child: IgnorePointer(
+                        child: Opacity(
                         opacity: 0.04,
                         child: Text(
                           widget.anime.status.toUpperCase(),
@@ -151,6 +197,7 @@ class _AnimeCardState extends State<AnimeCard>
                           ),
                         ),
                       ),
+                    ),
                     ),
 
                     // ── 图片底部渐变（与下方实色自然融合）──
@@ -215,45 +262,89 @@ class _AnimeCardState extends State<AnimeCard>
                           compact: widget.compact,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          '${widget.anime.currentEpisode}/${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'}',
-                          style: TextStyle(
-                            fontSize: smallFont,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withOpacity(0.85),
+                        if (widget.anime.status == 'plan')
+                          // 想看：只显示总集数
+                          Text(
+                            '${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'} 集',
+                            style: TextStyle(
+                              fontSize: smallFont,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
+                          )
+                        else if (widget.anime.status == 'watching')
+                          // 在看：可点击的集数文本（点击弹出跳转输入）
+                          GestureDetector(
+                            onTap: widget.onSetEpisode != null
+                                ? () => _showEpisodePicker(context)
+                                : null,
+                            child: Text(
+                              '${widget.anime.currentEpisode}/${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'}',
+                              style: TextStyle(
+                                fontSize: smallFont,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.85),
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white.withOpacity(0.25),
+                              ),
+                            ),
+                          )
+                        else
+                          // 已看完：只显示当前/总集数，不可点击
+                          Text(
+                            '${widget.anime.currentEpisode}/${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'}',
+                            style: TextStyle(
+                              fontSize: smallFont,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
                           ),
-                        ),
                         const Spacer(),
-                        _FloatingAction(
-                          icon: isFullyWatched
-                              ? Icons.check_rounded
-                              : Icons.add_rounded,
-                          onTap: isFullyWatched ? null : widget.onAddProgress,
-                          color: isFullyWatched
-                              ? Colors.greenAccent
-                              : statusColor,
-                          compact: widget.compact,
-                        ),
+                        // 只有「在看」才显示操作按钮
+                        if (widget.anime.status == 'watching') ...[
+                          // -1 按钮（当前集数 > 0 时显示）
+                          if (widget.anime.currentEpisode > 0) ...[
+                            _FloatingAction(
+                              icon: Icons.remove_rounded,
+                              onTap: widget.onSubtractProgress,
+                              color: statusColor,
+                              compact: widget.compact,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          // +1 按钮
+                          _FloatingAction(
+                            icon: isFullyWatched
+                                ? Icons.check_rounded
+                                : Icons.add_rounded,
+                            onTap: isFullyWatched ? null : widget.onAddProgress,
+                            color: isFullyWatched
+                                ? Colors.greenAccent
+                                : statusColor,
+                            compact: widget.compact,
+                          ),
+                        ],
                       ],
                     ),
                     SizedBox(height: widget.compact ? 6 : 8),
 
-                    // ── 进度条 ──
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: widget.anime.totalEpisodes > 0
-                            ? (widget.anime.currentEpisode /
-                                    widget.anime.totalEpisodes)
-                                .clamp(0.0, 1.0)
-                            : 0,
-                        backgroundColor: Colors.white.withOpacity(0.15),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          statusColor.withOpacity(0.9),
+                    // ── 进度条 ──（仅「在看」和「已看完」显示）
+                    if (widget.anime.status != 'plan')
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: widget.anime.totalEpisodes > 0
+                              ? (widget.anime.currentEpisode /
+                                      widget.anime.totalEpisodes)
+                                  .clamp(0.0, 1.0)
+                              : 0,
+                          backgroundColor: Colors.white.withOpacity(0.15),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            statusColor.withOpacity(0.9),
+                          ),
+                          minHeight: barHeight,
                         ),
-                        minHeight: barHeight,
                       ),
-                    ),
                   ],
                 ),
               ),

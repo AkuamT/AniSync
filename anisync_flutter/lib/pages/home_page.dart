@@ -399,6 +399,33 @@ class _AnimeListPageState extends State<_AnimeListPage>
     }
   }
 
+  Future<void> _handleSubtractProgress(
+    BuildContext context,
+    AnimeProvider provider,
+    Anime anime,
+  ) async {
+    final success = await provider.minusOne(anime);
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.error ?? '已经是第 0 集了')),
+      );
+    }
+  }
+
+  Future<void> _handleSetEpisode(
+    BuildContext context,
+    AnimeProvider provider,
+    Anime anime,
+    int episode,
+  ) async {
+    final success = await provider.setEpisode(anime, episode);
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('更新失败: ${provider.error}')),
+      );
+    }
+  }
+
   void _showDeleteConfirm(
     BuildContext context,
     AnimeProvider provider,
@@ -508,6 +535,10 @@ class _AnimeListPageState extends State<_AnimeListPage>
                               compact: isNarrow,
                               onAddProgress: () =>
                                   _handleAddProgress(context, provider, anime),
+                              onSubtractProgress: () =>
+                                  _handleSubtractProgress(context, provider, anime),
+                              onSetEpisode: (episode) =>
+                                  _handleSetEpisode(context, provider, anime, episode),
                               onDelete: () =>
                                   _showDeleteConfirm(context, provider, anime),
                               onCardTap: () {

@@ -5,7 +5,7 @@ const props = defineProps({
   anime: { type: Object, required: true },
 })
 
-const emit = defineEmits(['plus-one', 'delete', 'status-change'])
+const emit = defineEmits(['plus-one', 'minus-one', 'set-episode', 'delete', 'status-change'])
 
 const statusMap = {
   watching: '在看',
@@ -15,6 +15,18 @@ const statusMap = {
 
 function onStatusChange(e) {
   emit('status-change', props.anime, e.target.value)
+}
+
+function onClickEpisode() {
+  const input = prompt(
+    `跳转到第几集？（共 ${props.anime.total_episodes || '?'} 集）`,
+    String(props.anime.current_episode),
+  )
+  if (input === null) return
+  const episode = parseInt(input, 10)
+  if (!isNaN(episode) && episode >= 0) {
+    emit('set-episode', props.anime, episode)
+  }
 }
 
 function progressPercent() {
@@ -43,7 +55,20 @@ const isCompleted = computed(() =>
           <option value="completed">已看完</option>
         </select>
       </div>
-      <div class="anime-progress">
+      <div v-if="anime.status === 'plan'" class="anime-progress">
+        <div class="progress-text">
+          共 {{ anime.total_episodes || '?' }} 集
+        </div>
+      </div>
+      <div v-else-if="anime.status === 'watching'" class="anime-progress">
+        <div class="progress-text clickable" @click="onClickEpisode" title="点击跳转到指定集数">
+          当前: <u>{{ anime.current_episode }}</u> / {{ anime.total_episodes || '?' }} 集
+        </div>
+        <div v-if="anime.total_episodes > 0" class="progress-bar">
+          <div class="progress-fill" :style="{ width: progressPercent() + '%' }"></div>
+        </div>
+      </div>
+      <div v-else class="anime-progress">
         <div class="progress-text">
           当前: {{ anime.current_episode }} / {{ anime.total_episodes || '?' }} 集
         </div>
@@ -52,7 +77,18 @@ const isCompleted = computed(() =>
         </div>
       </div>
       <div class="anime-actions">
-        <button class="btn-plus" :disabled="isCompleted" @click="emit('plus-one', anime)">+1 集</button>
+        <template v-if="anime.status === 'watching'">
+          <button
+            v-if="anime.current_episode > 0"
+            class="btn-minus"
+            @click="emit('minus-one', anime)"
+          >-1</button>
+          <button
+            class="btn-plus"
+            :disabled="isCompleted"
+            @click="emit('plus-one', anime)"
+          >+1 集</button>
+        </template>
         <button class="btn-delete" @click="emit('delete', anime)">删除</button>
       </div>
     </div>
@@ -135,6 +171,24 @@ const isCompleted = computed(() =>
 .anime-actions {
   display: flex;
   gap: 6px;
+}
+.progress-text.clickable {
+  cursor: pointer;
+}
+.progress-text.clickable:hover {
+  color: var(--accent);
+}
+.btn-minus {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.btn-minus:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 .btn-plus {
   flex: 1;

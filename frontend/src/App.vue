@@ -72,6 +72,30 @@ async function handlePlusOne(anime) {
   showToast(`进度更新至第 ${next} 集`)
 }
 
+async function handleMinusOne(anime) {
+  if (anime.current_episode <= 0) return
+  const prev = anime.current_episode - 1
+  const wasCompleted = anime.status === 'completed'
+  await updateAnime(anime.id, {
+    current_episode: prev,
+    status: wasCompleted ? 'watching' : anime.status,
+  })
+  await loadList()
+  showToast(`回退至第 ${prev} 集`)
+}
+
+async function handleSetEpisode(anime, episode) {
+  const maxEps = anime.total_episodes
+  const clamped = maxEps > 0 ? Math.min(episode, maxEps) : episode
+  const done = maxEps > 0 && clamped >= maxEps
+  await updateAnime(anime.id, {
+    current_episode: Math.max(0, clamped),
+    status: done ? 'completed' : (clamped > 0 ? 'watching' : anime.status),
+  })
+  await loadList()
+  showToast(`跳转至第 ${clamped} 集`)
+}
+
 async function handleDelete(anime) {
   if (!confirm(`确认删除「${anime.title}」？`)) return
   await deleteAnime(anime.id)
@@ -146,6 +170,8 @@ onMounted(loadList)
           :key="anime.id"
           :anime="anime"
           @plus-one="handlePlusOne"
+          @minus-one="handleMinusOne"
+          @set-episode="handleSetEpisode"
           @delete="handleDelete"
           @status-change="handleStatusChange"
         />
