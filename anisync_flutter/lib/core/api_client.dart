@@ -156,4 +156,19 @@ class ApiClient {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  /// 局域网同步：preview / remote_overwrite / local_overwrite / merge
+  Future<Map<String, dynamic>> lanSync({
+    required String host,
+    required int port,
+    required String mode,
+  }) async {
+    final response = await _request(
+      () => _dio.post(
+        ApiEndpoints.lanSync,
+        data: {'host': host, 'port': port, 'mode': mode},
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }

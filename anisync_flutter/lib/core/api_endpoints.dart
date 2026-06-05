@@ -11,6 +11,9 @@ class ApiEndpoints {
   static const String animeExport = '/api/anime/export/all';
   static const String animeImport = '/api/anime/import';
 
+  // 局域网同步
+  static const String lanSync = '/api/anime/lan-sync';
+
   // 健康检查
   static const String health = '/api/health';
 }

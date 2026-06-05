@@ -31,6 +31,22 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isImporting = false;
   Map<String, dynamic>? _importResult;
 
+  // ── 局域网同步状态 ──
+  final _hostController = TextEditingController(text: '192.168.');
+  final _portController = TextEditingController(text: '8080');
+  bool _isConnecting = false;
+  bool _isSyncing = false;
+  String? _syncMode; // 'remote_overwrite' | 'local_overwrite' | 'merge'
+  Map<String, dynamic>? _syncPreview;
+  Map<String, dynamic>? _syncResult;
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    super.dispose();
+  }
+
   // ============ 导出 ============
 
   Future<void> _handleExport() async {
@@ -243,6 +259,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 12),
                 _buildSyncSection(context),
                 const SizedBox(height: 32),
+                _buildSectionTitle(context, '局域网同步'),
+                const SizedBox(height: 12),
+                _buildLanSyncSection(context),
+                const SizedBox(height: 32),
                 _buildSectionTitle(context, '关于'),
                 const SizedBox(height: 12),
                 _buildAboutCard(context),
@@ -401,6 +421,717 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(
             fontSize: 12,
             color: scheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 局域网同步
+  // ═══════════════════════════════════════════════════════════
+
+  Future<void> _handleLanConnect() async {
+    final host = _hostController.text.trim();
+    final portStr = _portController.text.trim();
+
+    if (host.isEmpty || portStr.isEmpty) {
+      Fluttertoast.showToast(
+        msg: '请输入远程设备的 IP 地址和端口号',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        backgroundColor: Colors.orange.shade700,
+        textColor: Colors.white,
+        fontSize: 14,
+      );
+      return;
+    }
+
+    final port = int.tryParse(portStr);
+    if (port == null || port < 1 || port > 65535) {
+      Fluttertoast.showToast(
+        msg: '端口号无效，请输入 1-65535 之间的整数',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        backgroundColor: Colors.orange.shade700,
+        textColor: Colors.white,
+        fontSize: 14,
+      );
+      return;
+    }
+
+    setState(() {
+      _isConnecting = true;
+      _syncPreview = null;
+      _syncResult = null;
+    });
+
+    try {
+      final api = ApiClient();
+      final preview = await api.lanSync(
+        host: host,
+        port: port,
+        mode: 'preview',
+      );
+
+      if (mounted) {
+        setState(() {
+          _syncPreview = preview;
+          _isConnecting = false;
+        });
+        _showSyncDialog(host, port);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isConnecting = false);
+        Fluttertoast.showToast(
+          msg: '连接失败：${e.toString()}',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          fontSize: 14,
+        );
+      }
+    }
+  }
+
+  Future<void> _handleLanSync(String host, int port, String mode) async {
+    setState(() {
+      _isSyncing = true;
+      _syncMode = mode;
+    });
+
+    try {
+      final api = ApiClient();
+      final result = await api.lanSync(
+        host: host,
+        port: port,
+        mode: mode,
+      );
+
+      if (mounted) {
+        setState(() {
+          _syncResult = result;
+          _isSyncing = false;
+        });
+        // 刷新本地列表
+        if (context.mounted) {
+          context.read<AnimeProvider>().loadList();
+        }
+        Fluttertoast.showToast(
+          msg: result['success'] == true
+              ? (result['message'] as String? ?? '同步完成')
+              : '同步失败',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: result['success'] == true
+              ? Colors.green.shade700
+              : Colors.red.shade700,
+          textColor: Colors.white,
+          fontSize: 14,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+        Fluttertoast.showToast(
+          msg: '同步失败：${e.toString()}',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.CENTER,
+          backgroundColor: Colors.red.shade700,
+          textColor: Colors.white,
+          fontSize: 14,
+        );
+      }
+    }
+  }
+
+  void _showSyncDialog(String host, int port) {
+    final preview = _syncPreview;
+    if (preview == null) return;
+
+    final localCount = preview['local_count'] ?? 0;
+    final remoteCount = preview['remote_count'] ?? 0;
+    final localStatus = preview['local_status_counts'] as Map<String, dynamic>? ?? {};
+    final remoteStatus = preview['remote_status_counts'] as Map<String, dynamic>? ?? {};
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: isDark
+                  ? const Color(0xFF1C1C1E)
+                  : const Color(0xFFF5F5F7),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              title: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      Icons.link_rounded,
+                      color: Colors.green.shade400,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '已连接到 $host:$port',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 数量对比
+                  Row(
+                    children: [
+                      // 本地
+                      Expanded(
+                        child: _buildSyncCountCard(
+                          ctx,
+                          '本机',
+                          localCount as int,
+                          localStatus,
+                          scheme.primary,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(
+                          Icons.swap_horiz_rounded,
+                          color: scheme.onSurface.withOpacity(0.3),
+                          size: 24,
+                        ),
+                      ),
+                      // 远程
+                      Expanded(
+                        child: _buildSyncCountCard(
+                          ctx,
+                          '远程',
+                          remoteCount as int,
+                          remoteStatus,
+                          Colors.orange.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // 同步结果
+                  if (_syncResult != null) ...[
+                    _buildSyncResultCard(ctx),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _syncPreview = null;
+                          _syncResult = null;
+                        });
+                      },
+                      child: const Text('完成'),
+                    ),
+                  ] else if (_isSyncing) ...[
+                    const SizedBox(height: 8),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(
+                      '正在同步...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: scheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ] else ...[
+                    // 三个操作按钮
+                    Text(
+                      '选择同步方式',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSyncOption(
+                      ctx,
+                      icon: Icons.cloud_download_rounded,
+                      label: '远程覆盖本地',
+                      subtitle: '用远程记录替换本机全部数据',
+                      color: Colors.red.shade400,
+                      onTap: () {
+                        setDialogState(() {});
+                        _handleLanSync(host, port, 'remote_overwrite');
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildSyncOption(
+                      ctx,
+                      icon: Icons.cloud_upload_rounded,
+                      label: '本地覆盖远程',
+                      subtitle: '将本机记录推送到远程设备',
+                      color: scheme.primary,
+                      onTap: () {
+                        setDialogState(() {});
+                        _handleLanSync(host, port, 'local_overwrite');
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildSyncOption(
+                      ctx,
+                      icon: Icons.merge_type_rounded,
+                      label: '互相合并',
+                      subtitle: '两边数据合并，各保留最新记录',
+                      color: Colors.green.shade400,
+                      onTap: () {
+                        setDialogState(() {});
+                        _handleLanSync(host, port, 'merge');
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              actions: _isSyncing
+                  ? null
+                  : _syncResult != null
+                      ? null
+                      : [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              setState(() {
+                                _syncPreview = null;
+                              });
+                            },
+                            child: Text(
+                              '取消',
+                              style: TextStyle(
+                                color: scheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                        ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSyncCountCard(
+    BuildContext context,
+    String label,
+    int total,
+    Map<String, dynamic> statusCounts,
+    Color accentColor,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.black.withOpacity(0.2)
+            : Colors.white.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: accentColor.withOpacity(0.2),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface.withOpacity(0.5),
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$total',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: accentColor,
+            ),
+          ),
+          Text(
+            '部番剧',
+            style: TextStyle(
+              fontSize: 11,
+              color: scheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildStatusRow(statusCounts, 'watching', '在看'),
+          _buildStatusRow(statusCounts, 'plan', '想看'),
+          _buildStatusRow(statusCounts, 'completed', '已看完'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusRow(Map<String, dynamic> counts, String key, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    final count = counts[key] ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: scheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSyncOption(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : Colors.white.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: color.withOpacity(0.2),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: color.withOpacity(0.5),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSyncResultCard(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final result = _syncResult;
+    if (result == null) return const SizedBox.shrink();
+
+    final syncResult = result['result'] as Map<String, dynamic>?;
+    final imported = syncResult?['imported'] as int? ?? 0;
+    final updated = syncResult?['updated'] as int? ?? 0;
+    final errors = syncResult?['errors'] as List? ?? [];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.green.withOpacity(0.2),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildStatColumn('新增', imported.toString(), Colors.green),
+              const SizedBox(width: 24),
+              _buildStatColumn('更新', updated.toString(), scheme.primary),
+              if (errors.isNotEmpty) ...[
+                const SizedBox(width: 24),
+                _buildStatColumn('错误', errors.length.toString(), Colors.red),
+              ],
+            ],
+          ),
+          if (errors.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...errors.take(3).map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    e.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.red.shade300,
+                    ),
+                  ),
+                )),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanSyncSection(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.black.withOpacity(0.25)
+                : Colors.white.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.5),
+              width: 0.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '输入同一局域网下另一台设备的地址',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // IP 地址 + 端口号输入
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _buildInputField(
+                      controller: _hostController,
+                      label: 'IP 地址',
+                      hint: '192.168.1.100',
+                      icon: Icons.language_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 1,
+                    child: _buildInputField(
+                      controller: _portController,
+                      label: '端口',
+                      hint: '8080',
+                      icon: Icons.settings_ethernet_rounded,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              // 连接按钮
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: Material(
+                  color: scheme.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap:
+                        _isConnecting ? null : _handleLanConnect,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: scheme.primary.withOpacity(0.2),
+                          width: 0.5,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: _isConnecting
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: scheme.primary,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.wifi_find_rounded,
+                                  color: scheme.primary,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '连接远程设备',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: scheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurface.withOpacity(0.5),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.black.withOpacity(0.15)
+                : Colors.white.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.4),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Icon(icon, size: 16, color: scheme.onSurface.withOpacity(0.4)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: keyboardType,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: scheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onSurface.withOpacity(0.3),
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(bottom: 2),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
