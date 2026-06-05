@@ -11,26 +11,6 @@ void main() {
 class AniSyncApp extends StatelessWidget {
   const AniSyncApp({super.key});
 
-  /// ═══════════════════════════════════════════════════════════
-  /// 二次元 (ACG) 主题色板 —— 亮紫 × 初音绿
-  /// ═══════════════════════════════════════════════════════════
-  static const Color _primary = Color(0xFFE040FB);      // 亮紫（主色）
-  static const Color _secondary = Color(0xFF39C5BB);    // 初音绿
-  static const Color _danger = Color(0xFFFF3B30);
-  static const Color _success = Color(0xFF39C5BB);
-
-  static const Color _darkBg = Color(0xFF0A0A14);       // 深蓝黑背景
-  static const Color _darkSurface = Color(0xFF12121F);  // 卡片底色（毛玻璃下可见）
-  static const Color _darkTextPrimary = Color(0xFFF0F0F5);
-  static const Color _darkTextSecondary = Color(0xFF9CA3AF);
-  static const Color _darkBorder = Color(0xFF2A2A3E);
-
-  static const Color _lightBg = Color(0xFFF5F0FA);      // 淡紫灰背景
-  static const Color _lightSurface = Color(0xFFFFFFFF);
-  static const Color _lightTextPrimary = Color(0xFF1A1A2E);
-  static const Color _lightTextSecondary = Color(0xFF6B7280);
-  static const Color _lightBorder = Color(0xFFE5E0EB);
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -40,11 +20,12 @@ class AniSyncApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, child) {
+          final preset = theme.preset;
           return MaterialApp(
             title: 'AniSync',
             debugShowCheckedModeBanner: false,
-            theme: _buildTheme(),
-            darkTheme: _buildDarkTheme(),
+            theme: _buildTheme(preset),
+            darkTheme: _buildDarkTheme(preset),
             themeMode: theme.themeMode,
             home: const HomePage(),
           );
@@ -53,17 +34,30 @@ class AniSyncApp extends StatelessWidget {
     );
   }
 
+  // ── 中性色板（不随主题色变化）──
+  static const Color _darkBg = Color(0xFF0A0A14);
+  static const Color _darkSurface = Color(0xFF12121F);
+  static const Color _darkTextPrimary = Color(0xFFF0F0F5);
+  static const Color _darkTextSecondary = Color(0xFF9CA3AF);
+  static const Color _darkBorder = Color(0xFF2A2A3E);
+
+  static const Color _lightBg = Color(0xFFF5F0FA);
+  static const Color _lightSurface = Color(0xFFFFFFFF);
+  static const Color _lightTextPrimary = Color(0xFF1A1A2E);
+  static const Color _lightTextSecondary = Color(0xFF6B7280);
+  static const Color _lightBorder = Color(0xFFE5E0EB);
+
   // ── 暗黑主题 ──
-  ThemeData _buildDarkTheme() {
+  ThemeData _buildDarkTheme(ThemePreset preset) {
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: _darkBg,
-      colorScheme: const ColorScheme.dark(
-        primary: _primary,
-        onPrimary: Colors.white,
-        secondary: _secondary,
+      colorScheme: ColorScheme.dark(
+        primary: preset.primary,
+        onPrimary: preset.onPrimary,
+        secondary: preset.secondary,
         surface: _darkSurface,
-        error: _danger,
+        error: preset.danger,
         outline: _darkBorder,
       ),
       textTheme: const TextTheme(
@@ -101,15 +95,15 @@ class AniSyncApp extends StatelessWidget {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _primary,
-          foregroundColor: Colors.white,
+          backgroundColor: preset.primary,
+          foregroundColor: preset.onPrimary,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ).copyWith(
-          overlayColor: WidgetStateProperty.all(_primary.withOpacity(0.2)),
+          overlayColor: WidgetStateProperty.all(preset.primary.withOpacity(0.2)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -119,22 +113,22 @@ class AniSyncApp extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primary, width: 2),
+          borderSide: BorderSide(color: preset.primary, width: 2),
         ),
         filled: true,
         fillColor: _darkSurface.withOpacity(0.5),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
-      tabBarTheme: const TabBarThemeData(
+      tabBarTheme: TabBarThemeData(
         labelColor: _darkTextPrimary,
         unselectedLabelColor: _darkTextSecondary,
-        indicatorColor: _primary,
+        indicatorColor: preset.primary,
         indicatorSize: TabBarIndicatorSize.label,
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: _primary,
-        foregroundColor: Colors.white,
-        extendedPadding: EdgeInsets.symmetric(horizontal: 20),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: preset.primary,
+        foregroundColor: preset.onPrimary,
+        extendedPadding: const EdgeInsets.symmetric(horizontal: 20),
         elevation: 4,
       ),
       dividerTheme: const DividerThemeData(
@@ -145,16 +139,16 @@ class AniSyncApp extends StatelessWidget {
   }
 
   // ── 亮色主题 ──
-  ThemeData _buildTheme() {
+  ThemeData _buildTheme(ThemePreset preset) {
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: _lightBg,
-      colorScheme: const ColorScheme.light(
-        primary: _primary,
-        onPrimary: Colors.white,
-        secondary: _secondary,
+      colorScheme: ColorScheme.light(
+        primary: preset.primary,
+        onPrimary: preset.onPrimary,
+        secondary: preset.secondary,
         surface: _lightSurface,
-        error: _danger,
+        error: preset.danger,
         outline: _lightBorder,
       ),
       textTheme: const TextTheme(
@@ -192,15 +186,15 @@ class AniSyncApp extends StatelessWidget {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _primary,
-          foregroundColor: Colors.white,
+          backgroundColor: preset.primary,
+          foregroundColor: preset.onPrimary,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         ).copyWith(
-          overlayColor: WidgetStateProperty.all(_primary.withOpacity(0.2)),
+          overlayColor: WidgetStateProperty.all(preset.primary.withOpacity(0.2)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -210,22 +204,22 @@ class AniSyncApp extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primary, width: 2),
+          borderSide: BorderSide(color: preset.primary, width: 2),
         ),
         filled: true,
         fillColor: _lightSurface.withOpacity(0.8),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
-      tabBarTheme: const TabBarThemeData(
+      tabBarTheme: TabBarThemeData(
         labelColor: _lightTextPrimary,
         unselectedLabelColor: _lightTextSecondary,
-        indicatorColor: _primary,
+        indicatorColor: preset.primary,
         indicatorSize: TabBarIndicatorSize.label,
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: _primary,
-        foregroundColor: Colors.white,
-        extendedPadding: EdgeInsets.symmetric(horizontal: 20),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: preset.primary,
+        foregroundColor: preset.onPrimary,
+        extendedPadding: const EdgeInsets.symmetric(horizontal: 20),
         elevation: 4,
       ),
       dividerTheme: const DividerThemeData(

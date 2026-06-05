@@ -88,7 +88,7 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
             decoration: isDesktop
                 ? BoxDecoration(
                     color: isDark
-                        ? const Color(0xFF12121F).withOpacity(0.92)
+                        ? Theme.of(context).colorScheme.surface.withOpacity(0.92)
                         : Colors.white.withOpacity(0.92),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
@@ -235,13 +235,15 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
 
     if (!mounted) return;
 
+    final scheme = Theme.of(context).colorScheme;
+
     if (success) {
       Fluttertoast.showToast(
         msg: '「${result.title}」已添加到想看',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
-        backgroundColor: const Color(0xFF39C5BB),
-        textColor: Colors.white,
+        backgroundColor: scheme.secondary,
+        textColor: scheme.onPrimary,
         fontSize: 14,
       );
       Navigator.pop(context, 'plan');
@@ -250,7 +252,7 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
         msg: '添加失败: ${provider.error}',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
-        backgroundColor: const Color(0xFFFF3B30),
+        backgroundColor: scheme.error,
         textColor: Colors.white,
         fontSize: 14,
       );
@@ -279,7 +281,7 @@ class _CenterMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = isError ? scheme.error : scheme.outline;
+    final color = isError ? scheme.error : scheme.primary;
 
     return Center(
       child: Padding(

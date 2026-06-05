@@ -6,13 +6,23 @@ import '../providers/anime_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/anime_card.dart';
 import 'search_page.dart';
+import 'settings_page.dart';
 
-/// 主页面 - 追番列表（二次元沉浸风格）
-///
-/// 架构说明：
-/// - 全局渐变背景 + 暗色遮罩 + 毛玻璃卡片
-/// - 颜文字空状态与错误兜底
-/// - TabBar 使用 BackdropFilter 毛玻璃效果
+// ═══════════════════════════════════════════════════════════════════
+//  数据定义
+// ═══════════════════════════════════════════════════════════════════
+
+class _TabData {
+  final String label;
+  final String status;
+
+  const _TabData({required this.label, required this.status});
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  主页面 — 二次元沉浸风格重构版
+// ═══════════════════════════════════════════════════════════════════
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -20,22 +30,21 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _HomePageState extends State<HomePage> {
+  late final PageController _pageController;
+  int _currentIndex = 0;
+  int _animationTrigger = 0;
 
   static const _tabs = [
-    Tab(text: '在看'),
-    Tab(text: '想看'),
-    Tab(text: '已看完'),
+    _TabData(label: '在看', status: 'watching'),
+    _TabData(label: '想看', status: 'plan'),
+    _TabData(label: '已看完', status: 'completed'),
   ];
-
-  static const _statuses = ['watching', 'plan', 'completed'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _pageController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnimeProvider>().loadList();
     });
@@ -43,8 +52,24 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _pageController.dispose();
     super.dispose();
+  }
+
+  void _onTabTap(int index) {
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+    setState(() => _currentIndex = index);
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentIndex = index;
+      _animationTrigger++;
+    });
   }
 
   Future<void> _openSearch(BuildContext context) async {
@@ -54,36 +79,27 @@ class _HomePageState extends State<HomePage>
       builder: (_) => const SearchAnimePage(),
     );
     if (result == 'plan' && mounted) {
-      _tabController.animateTo(1);
+      _onTabTap(1);
     }
   }
 
-  /// 二次元风格背景渐变
   LinearGradient _buildGradient(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final preset = context.read<ThemeProvider>().preset;
+
     if (isDark) {
-      return const LinearGradient(
+      return LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF1A0A2E), // 深紫
-          Color(0xFF0A0A14), // 近黑
-          Color(0xFF0F1A2E), // 深蓝
-          Color(0xFF1A0A2E), // 深紫
-        ],
-        stops: [0.0, 0.35, 0.7, 1.0],
+        colors: preset.darkGradient,
+        stops: preset.darkGradientStops,
       );
     }
-    return const LinearGradient(
+    return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        Color(0xFFF5E6FA), // 淡紫
-        Color(0xFFE6F0FA), // 淡蓝
-        Color(0xFFFAE6F0), // 淡粉
-        Color(0xFFF5E6FA), // 淡紫
-      ],
-      stops: [0.0, 0.35, 0.7, 1.0],
+      colors: preset.lightGradient,
+      stops: preset.lightGradientStops,
     );
   }
 
@@ -110,61 +126,30 @@ class _HomePageState extends State<HomePage>
         // ── 主内容 ──
         Scaffold(
           backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const Text('AniSync'),
-            actions: const [
-              _ThemeToggleButton(),
-              SizedBox(width: 8),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.black.withOpacity(0.3)
-                            : Colors.white.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.white.withOpacity(0.5),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        tabs: _tabs,
-                        labelStyle: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        unselectedLabelStyle: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        labelPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        indicatorSize: TabBarIndicatorSize.label,
-                      ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                // 顶部栏：标题 + 胶囊 Tab
+                _TopBar(
+                  currentIndex: _currentIndex,
+                  tabs: _tabs,
+                  onTabTap: _onTabTap,
+                ),
+                // 页面内容
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: _onPageChanged,
+                    itemCount: _tabs.length,
+                    itemBuilder: (context, index) => _AnimeListPage(
+                      status: _tabs[index].status,
+                      showHero: index == 0,
+                      animationTrigger: _animationTrigger,
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ),
-          body: TabBarView(
-            controller: _tabController,
-            children: _statuses
-                .map((status) => _AnimeGridPage(status: status))
-                .toList(),
           ),
           floatingActionButton: _GlowingFAB(
             onPressed: () => _openSearch(context),
@@ -175,9 +160,742 @@ class _HomePageState extends State<HomePage>
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// 发光 FAB（二次元风格）
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  顶部栏
+// ═══════════════════════════════════════════════════════════════════
+
+class _TopBar extends StatelessWidget {
+  final int currentIndex;
+  final List<_TabData> tabs;
+  final ValueChanged<int> onTabTap;
+
+  const _TopBar({
+    required this.currentIndex,
+    required this.tabs,
+    required this.onTabTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Column(
+        children: [
+          // 标题行
+          Row(
+            children: [
+              Text(
+                'AniSync',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+              ),
+              const Spacer(),
+              const _SettingsButton(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 胶囊 Tab 栏
+          _CapsuleTabBar(
+            selectedIndex: currentIndex,
+            tabs: tabs,
+            onTap: onTabTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  悬浮胶囊 Tab 栏 — 带动画指示器与计数徽章
+// ═══════════════════════════════════════════════════════════════════
+
+class _CapsuleTabBar extends StatelessWidget {
+  final int selectedIndex;
+  final List<_TabData> tabs;
+  final ValueChanged<int> onTap;
+
+  const _CapsuleTabBar({
+    required this.selectedIndex,
+    required this.tabs,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.white.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.5),
+              width: 0.5,
+            ),
+          ),
+          child: Consumer<AnimeProvider>(
+            builder: (context, provider, child) {
+              final counts = provider.tabCounts;
+              return Row(
+                children: tabs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final tab = entry.value;
+                  final isSelected = index == selectedIndex;
+                  final count = counts[tab.status] ?? 0;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => onTap(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? scheme.primary.withOpacity(0.9)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                tab.label,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? scheme.onPrimary
+                                      : scheme.onSurface.withOpacity(0.7),
+                                  fontSize: 14,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              if (count > 0) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? scheme.onPrimary.withOpacity(0.2)
+                                        : scheme.primary.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$count',
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? scheme.onPrimary
+                                          : scheme.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  设置按钮
+// ═══════════════════════════════════════════════════════════════════
+
+class _SettingsButton extends StatelessWidget {
+  const _SettingsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: '设置',
+      icon: const Icon(Icons.settings_rounded, size: 22),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsPage()),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  番剧列表页面 — CustomScrollView + 错层布局 + 交错动画
+// ═══════════════════════════════════════════════════════════════════
+
+class _AnimeListPage extends StatefulWidget {
+  final String status;
+  final bool showHero;
+  final int animationTrigger;
+
+  const _AnimeListPage({
+    required this.status,
+    this.showHero = false,
+    this.animationTrigger = 0,
+  });
+
+  @override
+  State<_AnimeListPage> createState() => _AnimeListPageState();
+}
+
+class _AnimeListPageState extends State<_AnimeListPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  Anime? _getHeroAnime(List<Anime> list) {
+    if (list.isEmpty) return null;
+    return list.reduce((a, b) {
+      final aProgress =
+          a.totalEpisodes > 0 ? a.currentEpisode / a.totalEpisodes : 0.0;
+      final bProgress =
+          b.totalEpisodes > 0 ? b.currentEpisode / b.totalEpisodes : 0.0;
+      return aProgress > bProgress ? a : b;
+    });
+  }
+
+  int _itemsPerRow(double width) {
+    if (width <= 500) return 2;
+    if (width <= 900) return 3;
+    return 4;
+  }
+
+  Offset _staggerOffset(int itemsPerRow, int columnIndex, bool isNarrow) {
+    final offset = isNarrow ? 16.0 : 20.0;
+    if (itemsPerRow == 2) {
+      return columnIndex == 1 ? Offset(0, offset) : Offset.zero;
+    }
+    if (itemsPerRow == 3) {
+      return columnIndex == 1 ? Offset(0, -offset * 0.6) : Offset.zero;
+    }
+    return columnIndex % 2 == 1 ? Offset(0, offset) : Offset.zero;
+  }
+
+  Future<void> _handleAddProgress(
+    BuildContext context,
+    AnimeProvider provider,
+    Anime anime,
+  ) async {
+    final success = await provider.plusOne(anime);
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('更新失败: ${provider.error}')),
+      );
+    }
+  }
+
+  void _showDeleteConfirm(
+    BuildContext context,
+    AnimeProvider provider,
+    Anime anime,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        backgroundColor: scheme.surface.withOpacity(0.95),
+        title: const Text('确认删除'),
+        content: Text('确定要删除「${anime.title}」吗？此操作不可撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final success = await provider.deleteAnime(anime.id);
+              if (context.mounted && !success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('删除失败: ${provider.error}')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: scheme.error),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    return Consumer<AnimeProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading && provider.animeList.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final list = provider.filteredByStatus(widget.status);
+
+        if (list.isEmpty) {
+          final bool isError =
+              provider.error != null && provider.animeList.isEmpty;
+          return RefreshIndicator(
+            onRefresh: provider.loadList,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: isError
+                        ? _ErrorState(
+                            message: provider.error!,
+                            onRetry: provider.loadList,
+                          )
+                        : _EmptyState(status: widget.status),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final heroAnime = widget.showHero ? _getHeroAnime(list) : null;
+        final gridList = heroAnime != null
+            ? list.where((a) => a.id != heroAnime.id).toList()
+            : list;
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final isNarrow = w <= 500;
+            final padding = isNarrow ? 12.0 : 16.0;
+            final spacing = isNarrow ? 10.0 : 14.0;
+            final itemsPerRow = _itemsPerRow(w);
+
+            return RefreshIndicator(
+              onRefresh: provider.loadList,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // ── Hero Section ──
+                  if (heroAnime != null) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding:
+                            EdgeInsets.fromLTRB(padding, 4, padding, spacing),
+                        child: _HeroSection(
+                          anime: heroAnime,
+                          onAddProgress: () => _handleAddProgress(
+                              context, provider, heroAnime),
+                        ),
+                      ),
+                    ),
+                  ],
+                  // ── 错层瀑布流列表 ──
+                  SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: padding),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, rowIndex) {
+                          final startIndex = rowIndex * itemsPerRow;
+                          final endIndex =
+                              (startIndex + itemsPerRow).clamp(0, gridList.length);
+                          final rowItems =
+                              gridList.sublist(startIndex, endIndex);
+
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: spacing),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (int i = 0; i < rowItems.length; i++) ...[
+                                  if (i > 0) SizedBox(width: spacing),
+                                  Expanded(
+                                    child: _StaggeredItem(
+                                      index: startIndex + i,
+                                      trigger: widget.animationTrigger,
+                                      child: Transform.translate(
+                                        offset: _staggerOffset(
+                                            itemsPerRow, i, isNarrow),
+                                        child: AspectRatio(
+                                          aspectRatio: isNarrow ? 0.58 : 0.62,
+                                          child: AnimeCard(
+                                            anime: rowItems[i],
+                                            compact: isNarrow,
+                                            onAddProgress: () =>
+                                                _handleAddProgress(context,
+                                                    provider, rowItems[i]),
+                                            onDelete: () =>
+                                                _showDeleteConfirm(context,
+                                                    provider, rowItems[i]),
+                                            onCardTap: () {
+                                              debugPrint(
+                                                  '[AnimeCard] Tapped: ${rowItems[i].title}');
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                for (int i = rowItems.length;
+                                    i < itemsPerRow;
+                                    i++) ...[
+                                  if (i > 0) SizedBox(width: spacing),
+                                  const Expanded(child: SizedBox.shrink()),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                        childCount:
+                            (gridList.length + itemsPerRow - 1) ~/ itemsPerRow,
+                      ),
+                    ),
+                  ),
+                  // ── 底部留白（避免 FAB 遮挡）──
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: isNarrow ? 80 : 100),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  交错动画 Item — 滑入 + 渐显
+// ═══════════════════════════════════════════════════════════════════
+
+class _StaggeredItem extends StatefulWidget {
+  final int index;
+  final int trigger;
+  final Widget child;
+
+  const _StaggeredItem({
+    required this.index,
+    required this.trigger,
+    required this.child,
+  });
+
+  @override
+  State<_StaggeredItem> createState() => _StaggeredItemState();
+}
+
+class _StaggeredItemState extends State<_StaggeredItem>
+    with TickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAnimation();
+  }
+
+  void _initAnimation() {
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    Future.delayed(Duration(milliseconds: widget.index * 45), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_StaggeredItem old) {
+    super.didUpdateWidget(old);
+    if (old.trigger != widget.trigger) {
+      _controller.dispose();
+      _initAnimation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final value = _controller.value;
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 24 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Hero Section — 大画幅焦点卡片
+// ═══════════════════════════════════════════════════════════════════
+
+class _HeroSection extends StatelessWidget {
+  final Anime anime;
+  final VoidCallback? onAddProgress;
+
+  const _HeroSection({
+    required this.anime,
+    this.onAddProgress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isFullyWatched = anime.totalEpisodes > 0 &&
+        anime.currentEpisode >= anime.totalEpisodes;
+
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 封面背景
+            Image.network(
+              anime.coverUrl ?? '',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: Colors.grey.shade900,
+              ),
+            ),
+            // 渐变遮罩
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
+                  colors: [
+                    Colors.black.withOpacity(0.85),
+                    Colors.black.withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.5, 1.0],
+                ),
+              ),
+            ),
+            // 内容
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // 标签
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '正在追',
+                      style: TextStyle(
+                        color: scheme.onPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // 标题
+                  Text(
+                    anime.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.2,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // 进度行
+                  Row(
+                    children: [
+                      Text(
+                        '${anime.currentEpisode} / ${anime.totalEpisodes > 0 ? anime.totalEpisodes : '?'} 集',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: anime.totalEpisodes > 0
+                                ? (anime.currentEpisode / anime.totalEpisodes)
+                                    .clamp(0.0, 1.0)
+                                : 0,
+                            backgroundColor: Colors.white.withOpacity(0.15),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(scheme.primary),
+                            minHeight: 3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // +1 按钮
+                      _HeroAddButton(
+                        isFullyWatched: isFullyWatched,
+                        onTap: onAddProgress,
+                        color: scheme.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Hero +1 按钮 — 圆形带按压回弹
+// ═══════════════════════════════════════════════════════════════════
+
+class _HeroAddButton extends StatefulWidget {
+  final bool isFullyWatched;
+  final VoidCallback? onTap;
+  final Color color;
+
+  const _HeroAddButton({
+    required this.isFullyWatched,
+    this.onTap,
+    required this.color,
+  });
+
+  @override
+  State<_HeroAddButton> createState() => _HeroAddButtonState();
+}
+
+class _HeroAddButtonState extends State<_HeroAddButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap?.call();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: 1.0 - (_ctrl.value * 0.15),
+            child: child,
+          );
+        },
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.isFullyWatched
+                ? Colors.greenAccent.withOpacity(0.9)
+                : widget.color,
+            boxShadow: [
+              BoxShadow(
+                color: (widget.isFullyWatched
+                        ? Colors.greenAccent
+                        : widget.color)
+                    .withOpacity(0.4),
+                blurRadius: 10,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Icon(
+            widget.isFullyWatched ? Icons.check_rounded : Icons.add_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  发光 FAB（二次元风格）
+// ═══════════════════════════════════════════════════════════════════
 
 class _GlowingFAB extends StatelessWidget {
   final VoidCallback onPressed;
@@ -211,280 +929,15 @@ class _GlowingFAB extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('添加番剧'),
         backgroundColor: scheme.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: scheme.onPrimary,
       ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// 主题切换按钮（带动画）
-// ═══════════════════════════════════════════════════════════
-
-class _ThemeToggleButton extends StatelessWidget {
-  const _ThemeToggleButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, theme, child) {
-        final isDark = theme.isDark;
-        final icon = isDark ? Icons.wb_sunny_rounded : Icons.nightlight_rounded;
-        final tooltip = isDark ? '切换至浅色模式' : '切换至深色模式';
-
-        return GestureDetector(
-          onLongPress: () => _showThemeMenu(context, theme),
-          child: IconButton(
-            tooltip: tooltip,
-            onPressed: theme.toggle,
-            icon: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 350),
-              transitionBuilder: (child, animation) {
-                return RotationTransition(
-                  turns: Tween<double>(begin: 0.75, end: 1.0).animate(animation),
-                  child: ScaleTransition(
-                    scale: animation,
-                    child: FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    ),
-                  ),
-                );
-              },
-              child: Icon(
-                icon,
-                key: ValueKey<bool>(isDark),
-                size: 22,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showThemeMenu(BuildContext context, ThemeProvider theme) {
-    final renderBox = context.findRenderObject() as RenderBox?;
-    final overlay = Navigator.of(context).overlay?.context.findRenderObject()
-        as RenderBox?;
-    if (renderBox == null || overlay == null) return;
-
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(
-        renderBox.localToGlobal(Offset.zero, ancestor: overlay),
-        renderBox.localToGlobal(
-          renderBox.size.bottomRight(Offset.zero),
-          ancestor: overlay,
-        ),
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    showMenu<ThemeMode>(
-      context: context,
-      position: position,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      items: [
-        _themeMenuItem(context, theme, ThemeMode.system, '跟随系统',
-            Icons.brightness_auto_rounded),
-        _themeMenuItem(context, theme, ThemeMode.light, '浅色模式',
-            Icons.wb_sunny_rounded),
-        _themeMenuItem(context, theme, ThemeMode.dark, '深色模式',
-            Icons.nightlight_rounded),
-      ],
-    );
-  }
-
-  PopupMenuItem<ThemeMode> _themeMenuItem(
-    BuildContext context,
-    ThemeProvider theme,
-    ThemeMode mode,
-    String label,
-    IconData icon,
-  ) {
-    final isSelected = theme.themeMode == mode;
-    final scheme = Theme.of(context).colorScheme;
-
-    return PopupMenuItem<ThemeMode>(
-      value: mode,
-      onTap: () => theme.setMode(mode),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: isSelected ? scheme.primary : scheme.outline,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? scheme.primary : scheme.onSurface,
-            ),
-          ),
-          const Spacer(),
-          if (isSelected)
-            Icon(
-              Icons.check_rounded,
-              size: 18,
-              color: scheme.primary,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// 内部页面组件
-// ═══════════════════════════════════════════════════════════
-
-class _AnimeGridPage extends StatelessWidget {
-  final String status;
-
-  const _AnimeGridPage({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AnimeProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading && provider.animeList.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final list = provider.filteredByStatus(status);
-
-        if (list.isNotEmpty) {
-          return RefreshIndicator(
-            onRefresh: provider.loadList,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final w = constraints.maxWidth;
-                final isNarrow = w <= 500;
-                final padding = isNarrow ? 10.0 : 16.0;
-                final spacing = isNarrow ? 10.0 : 16.0;
-
-                return GridView.builder(
-                  padding: EdgeInsets.all(padding),
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: _gridCellWidth(w),
-                    childAspectRatio: isNarrow ? 0.56 : 0.55,
-                    crossAxisSpacing: spacing,
-                    mainAxisSpacing: spacing,
-                  ),
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final anime = list[index];
-                    return AnimeCard(
-                      anime: anime,
-                      compact: isNarrow,
-                      onAddProgress: () =>
-                          _handleAddProgress(context, provider, anime),
-                      onDelete: () =>
-                          _showDeleteConfirm(context, provider, anime),
-                      onCardTap: () {
-                        debugPrint('[AnimeCard] Tapped: ${anime.title}');
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        }
-
-        final bool isError =
-            provider.error != null && provider.animeList.isEmpty;
-        return RefreshIndicator(
-          onRefresh: provider.loadList,
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Center(
-                  child: isError
-                      ? _ErrorState(
-                          message: provider.error!,
-                          onRetry: provider.loadList,
-                        )
-                      : _EmptyState(status: status),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  double _gridCellWidth(double screenWidth) {
-    if (screenWidth <= 500) return screenWidth / 2 - 8;
-    if (screenWidth <= 700) return screenWidth / 3 - 12;
-    if (screenWidth <= 1100) return screenWidth / 4 - 14;
-    return screenWidth / 5 - 16;
-  }
-
-  Future<void> _handleAddProgress(
-    BuildContext context,
-    AnimeProvider provider,
-    Anime anime,
-  ) async {
-    final success = await provider.plusOne(anime);
-    if (!success && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('更新失败: ${provider.error}')),
-      );
-    }
-  }
-
-  void _showDeleteConfirm(
-    BuildContext context,
-    AnimeProvider provider,
-    Anime anime,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        backgroundColor: isDark
-            ? const Color(0xFF12121F).withOpacity(0.95)
-            : Colors.white.withOpacity(0.95),
-        title: const Text('确认删除'),
-        content: Text('确定要删除「${anime.title}」吗？此操作不可撤销。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              final success = await provider.deleteAnime(anime.id);
-              if (context.mounted && !success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('删除失败: ${provider.error}')),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-// 颜文字空状态与错误状态
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  颜文字空状态与错误状态
+// ═══════════════════════════════════════════════════════════════════
 
 class _EmptyState extends StatelessWidget {
   final String status;
@@ -542,7 +995,7 @@ class _EmptyState extends StatelessWidget {
               _kaomoji,
               style: TextStyle(
                 fontSize: 48,
-                color: scheme.primary.withOpacity(0.6),
+                color: scheme.primary.withOpacity(0.75),
                 height: 1.2,
               ),
             ),
@@ -550,7 +1003,7 @@ class _EmptyState extends StatelessWidget {
             Text(
               _title,
               style: textTheme.titleMedium?.copyWith(
-                color: scheme.onSurface.withOpacity(0.8),
+                color: scheme.onSurface.withOpacity(0.85),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -559,7 +1012,7 @@ class _EmptyState extends StatelessWidget {
               _subtitle,
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
-                color: scheme.outline.withOpacity(0.8),
+                color: scheme.primary.withOpacity(0.55),
               ),
             ),
           ],
@@ -590,7 +1043,7 @@ class _ErrorState extends StatelessWidget {
               '(っ °Д °;)っ',
               style: TextStyle(
                 fontSize: 48,
-                color: scheme.error.withOpacity(0.6),
+                color: scheme.error.withOpacity(0.7),
                 height: 1.2,
               ),
             ),
@@ -607,7 +1060,7 @@ class _ErrorState extends StatelessWidget {
               '快去检查 Python 服务！\n$message',
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
-                color: scheme.outline.withOpacity(0.8),
+                color: scheme.primary.withOpacity(0.5),
               ),
             ),
             const SizedBox(height: 24),

@@ -45,3 +45,8 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# ========================
+# Claude Code
+# ========================
+.claude/
