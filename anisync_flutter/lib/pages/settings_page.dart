@@ -338,11 +338,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       child: Column(
         children: [
-          const Text(
+          Text(
             '导入结果',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -364,9 +365,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     e.toString(),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.red,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade300,
                     ),
                   ),
                 )),
@@ -382,6 +383,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildStatColumn(String label, String value, Color color) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -396,9 +398,9 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: Colors.grey,
+            color: scheme.onSurface.withOpacity(0.6),
           ),
         ),
       ],
@@ -426,12 +428,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildSectionTitle(BuildContext context, String text) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Text(
       text,
       style: TextStyle(
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: FontWeight.w800,
-        color: scheme.primary,
+        // 使用 onSurface 保证在任何主题色 + 毛玻璃背景下都清晰可读
+        color: isDark
+            ? scheme.onSurface.withOpacity(0.92)
+            : scheme.onSurface.withOpacity(0.85),
         letterSpacing: 1.5,
       ),
     );
@@ -486,7 +492,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 '二次元追番管理工具',
                 style: TextStyle(
                   fontSize: 14,
-                  color: scheme.outline,
+                  color: scheme.onSurface.withOpacity(0.7),
                 ),
               ),
               const SizedBox(height: 16),
@@ -494,7 +500,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Version 1.0.0',
                 style: TextStyle(
                   fontSize: 12,
-                  color: scheme.outline.withOpacity(0.7),
+                  color: scheme.onSurface.withOpacity(0.55),
                 ),
               ),
             ],
@@ -580,7 +586,7 @@ class _SyncActionCard extends StatelessWidget {
                   subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    color: scheme.outline,
+                    color: scheme.onSurface.withOpacity(0.65),
                   ),
                 ),
               ],
@@ -618,7 +624,7 @@ class _SyncActionCard extends StatelessWidget {
                     buttonText,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: scheme.primary,
                     ),
                   ),
@@ -700,8 +706,9 @@ class _ThemeModeSelector extends StatelessWidget {
                           Icon(
                             mode.icon,
                             size: 22,
-                            color:
-                                isSelected ? scheme.primary : scheme.outline,
+                            color: isSelected
+                                ? scheme.primary
+                                : scheme.onSurface.withOpacity(0.65),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -713,8 +720,8 @@ class _ThemeModeSelector extends StatelessWidget {
                                     ? FontWeight.w600
                                     : FontWeight.w400,
                                 color: isSelected
-                                    ? scheme.primary
-                                    : scheme.onSurface,
+                                    ? scheme.onSurface
+                                    : scheme.onSurface.withOpacity(0.8),
                               ),
                             ),
                           ),
@@ -872,10 +879,17 @@ class _ColorSwatch extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   preset.description,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 10,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
                 ),
               ],
