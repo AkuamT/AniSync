@@ -29,16 +29,16 @@ class SearchResult {
   }
 
   /// 转换为 AnimeCreate payload
-  /// 默认 status 为 'plan'（想看）
+  /// [status] 由调用方根据当前 Tab 动态传入，默认为 'plan'（想看）
   /// BUG-12 修复：省略 score 字段而非显式传 null
-  Map<String, dynamic> toCreatePayload() {
+  Map<String, dynamic> toCreatePayload({String status = 'plan'}) {
     return {
       'title': title,
       'cover_url': coverUrl,
       'description': description,
       'total_episodes': totalEpisodes,
       'current_episode': 0,
-      'status': 'plan',
+      'status': status,
       'air_date': airDate,
       'bangumi_id': bangumiId,
     };

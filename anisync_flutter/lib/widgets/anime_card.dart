@@ -3,11 +3,18 @@ import '../models/anime.dart';
 
 /// 番剧卡片 — 纯 UI 展示组件（杂志风无界设计）
 ///
-/// 设计约束：
-/// - 封面图铺满整张卡片，无边框、无圆角裁剪感
-/// - 文字与操作区通过底部渐变遮罩自然融入
-/// - 背景角落实体半透明装饰水印增强设计感
-/// - 支持触摸（弹簧缩放）与桌面悬停两种交互
+/// 布局结构（Column 约束模型，杜绝溢出）：
+/// ```
+/// ClipRRect
+///   └─ Column
+///        ├─ Expanded ─ Stack（封面图 + 水印 + 删除按钮 + 底部渐变融合）
+///        └─ Container ─ 底部信息区（标题、状态、进度条、+1 按钮）
+/// ```
+///
+/// 约束来源：ReorderableGridView.count(childAspectRatio: 0.62)
+/// → 单元格高度 = 单元格宽度 / 0.62
+/// → Expanded 自动吐纳剩余空间，信息区根据内容自然撑开
+/// → 绝无 BOTTOM OVERFLOWED
 class AnimeCard extends StatefulWidget {
   final Anime anime;
   final VoidCallback? onAddProgress;
@@ -86,14 +93,18 @@ class _AnimeCardState extends State<AnimeCard>
         widget.anime.currentEpisode >= widget.anime.totalEpisodes;
 
     final double cardRadius = widget.compact ? 16 : 20;
-    final double overlayHeight = widget.compact ? 90 : 120;
+    final double fontSize = widget.compact ? 14 : 16;
+    final double smallFont = widget.compact ? 11 : 12;
+    final double barHeight = widget.compact ? 2.5 : 3.0;
+    final EdgeInsets infoPadding = widget.compact
+        ? const EdgeInsets.all(10)
+        : const EdgeInsets.all(14);
 
     return GestureDetector(
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
       onTap: widget.onCardTap,
-      onLongPress: widget.onDelete,
       child: AnimatedBuilder(
         animation: _springAnimation,
         builder: (context, child) {
@@ -105,140 +116,145 @@ class _AnimeCardState extends State<AnimeCard>
         },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(cardRadius),
-          child: Stack(
-            fit: StackFit.expand,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── 封面图 — 完全铺满，无边距 ──
-              _CoverImage(coverUrl: widget.anime.coverUrl),
+              // ── 封面图区域（Expanded 自动吞吐剩余高度）──
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 封面图 — fit: BoxFit.cover 确保填满且不溢出
+                    _CoverImage(coverUrl: widget.anime.coverUrl),
 
-              // ── 装饰水印 — 角落大字号半透明 ──
-              Positioned(
-                top: widget.compact ? -8 : -12,
-                right: widget.compact ? -6 : -8,
-                child: Opacity(
-                  opacity: 0.04,
-                  child: Text(
-                    widget.anime.status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: widget.compact ? 42 : 56,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ),
-              ),
+                    // ── 删除按钮（右上角悬浮）──
+                    if (widget.onDelete != null)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: _DeleteButton(onTap: widget.onDelete!),
+                      ),
 
-              // ── 底部渐变遮罩 — 承载文字与按钮 ──
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: overlayHeight,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.5),
-                        Colors.black.withOpacity(0.85),
-                      ],
-                      stops: const [0.0, 0.4, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── 信息层 — 悬浮在遮罩之上 ──
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Padding(
-                  padding: widget.compact
-                      ? const EdgeInsets.all(10)
-                      : const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // ── 标题：杂志风大字号加粗 ──
-                      Text(
-                        widget.anime.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: widget.compact ? 14 : 16,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.3,
-                          letterSpacing: 0.3,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withOpacity(0.6),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                    // ── 装饰水印 — 角落大字号半透明 ──
+                    Positioned(
+                      top: widget.compact ? -8 : -12,
+                      right: widget.compact ? -6 : -8,
+                      child: Opacity(
+                        opacity: 0.04,
+                        child: Text(
+                          widget.anime.status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: widget.compact ? 42 : 56,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 2,
+                          ),
                         ),
                       ),
-                      SizedBox(height: widget.compact ? 6 : 8),
+                    ),
 
-                      // ── 进度行：紧凑水平排列 ──
-                      Row(
-                        children: [
-                          // 状态药丸
-                          _StatusBadge(
-                            label: widget.anime.statusLabel,
-                            color: statusColor,
-                            compact: widget.compact,
+                    // ── 图片底部渐变（与下方实色自然融合）──
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 48,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.7),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          // 进度文字
-                          Text(
-                            '${widget.anime.currentEpisode}/${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'}',
-                            style: TextStyle(
-                              fontSize: widget.compact ? 11 : 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withOpacity(0.85),
-                            ),
-                          ),
-                          const Spacer(),
-                          // +1 按钮（圆形悬浮）
-                          _FloatingAction(
-                            icon: isFullyWatched
-                                ? Icons.check_rounded
-                                : Icons.add_rounded,
-                            onTap: isFullyWatched ? null : widget.onAddProgress,
-                            color: isFullyWatched
-                                ? Colors.greenAccent
-                                : statusColor,
-                            compact: widget.compact,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── 底部信息栏 — 独立容器，高度由内容决定，绝不溢出 ──
+              Container(
+                color: const Color(0xFF121212),
+                padding: infoPadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── 标题 ──
+                    Text(
+                      widget.anime.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.3,
+                        letterSpacing: 0.3,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.6),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
                           ),
                         ],
                       ),
-                      SizedBox(height: widget.compact ? 6 : 8),
+                    ),
+                    SizedBox(height: widget.compact ? 6 : 8),
 
-                      // ── 进度条：更细的线，发光效果 ──
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: widget.anime.totalEpisodes > 0
-                              ? (widget.anime.currentEpisode /
-                                      widget.anime.totalEpisodes)
-                                  .clamp(0.0, 1.0)
-                              : 0,
-                          backgroundColor: Colors.white.withOpacity(0.15),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            statusColor.withOpacity(0.9),
-                          ),
-                          minHeight: widget.compact ? 2.5 : 3,
+                    // ── 进度行 ──
+                    Row(
+                      children: [
+                        _StatusBadge(
+                          label: widget.anime.statusLabel,
+                          color: statusColor,
+                          compact: widget.compact,
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${widget.anime.currentEpisode}/${widget.anime.totalEpisodes > 0 ? widget.anime.totalEpisodes : '?'}',
+                          style: TextStyle(
+                            fontSize: smallFont,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.85),
+                          ),
+                        ),
+                        const Spacer(),
+                        _FloatingAction(
+                          icon: isFullyWatched
+                              ? Icons.check_rounded
+                              : Icons.add_rounded,
+                          onTap: isFullyWatched ? null : widget.onAddProgress,
+                          color: isFullyWatched
+                              ? Colors.greenAccent
+                              : statusColor,
+                          compact: widget.compact,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: widget.compact ? 6 : 8),
+
+                    // ── 进度条 ──
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: widget.anime.totalEpisodes > 0
+                            ? (widget.anime.currentEpisode /
+                                    widget.anime.totalEpisodes)
+                                .clamp(0.0, 1.0)
+                            : 0,
+                        backgroundColor: Colors.white.withOpacity(0.15),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          statusColor.withOpacity(0.9),
+                        ),
+                        minHeight: barHeight,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -412,6 +428,34 @@ class _FloatingActionState extends State<_FloatingAction>
             size: widget.compact ? 14 : 16,
             color: Colors.white,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 卡片删除按钮 — 右上角悬浮圆形图标，轻触弹出确认对话框
+class _DeleteButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _DeleteButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black.withOpacity(0.45),
+        ),
+        child: const Icon(
+          Icons.close_rounded,
+          size: 14,
+          color: Colors.white70,
         ),
       ),
     );

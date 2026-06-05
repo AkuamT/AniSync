@@ -80,7 +80,7 @@ docker-compose up                              # Production
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | Health check |
-| GET | `/api/bangumi/search?q=` | Search anime via Bangumi API |
+| GET | `/api/bangumi/search?keyword=` | Search anime via Bangumi API |
 | GET | `/api/anime` | List anime (optional `?status=` filter) |
 | POST | `/api/anime` | Add anime to list |
 | PUT | `/api/anime/{id}` | Update anime (progress, status) |
@@ -95,3 +95,12 @@ docker-compose up                              # Production
 - Tests use FastAPI's sync `TestClient` with in-memory SQLite and mocked Bangumi HTTP calls
 - Bug fixes in code are annotated with comments like `BUG-3`, `BUG-5`, etc. — these document historical issues and their fixes; preserve them when editing
 - `api.bgm.tv` / `lain.bgm.tv` may be inaccessible from mainland China — set `BANGUMI_BASE_URL` env var to a Deno Deploy reverse proxy (see `backend/deno-proxy.js`), or set `HTTPS_PROXY` to route requests through a proxy. Detailed setup in README.md
+
+### Environment Variables
+The `.env` file lives at the **project root** (not in `backend/`). Loaded by python-dotenv in `main.py`. See `.env.example` for template.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BANGUMI_BASE_URL` | Bangumi API reverse proxy URL | `https://api.bgm.tv` |
+| `HTTPS_PROXY` | HTTP proxy for outbound requests | (none) |
+| `DATABASE_URL` | SQLite database file path | `data/anisync.db` |

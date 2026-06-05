@@ -15,9 +15,13 @@ import '../utils/debounce.dart';
 /// 交互：
 /// - 输入框防抖 500ms 自动搜索
 /// - 一键清除输入
-/// - 点击「添加」后调用 POST /api/anime，成功后返回 'plan' 信号
+/// - BUG 修复：根据 [defaultStatus] 参数动态传入添加状态，不再是硬编码 'plan'
+/// - 添加成功后返回实际使用的 status 字符串，主页面据此跳转到对应 Tab
 class SearchAnimePage extends StatefulWidget {
-  const SearchAnimePage({super.key});
+  /// 当前 Tab 对应的状态，用于添加番剧时动态指定 status
+  final String defaultStatus;
+
+  const SearchAnimePage({super.key, this.defaultStatus = 'plan'});
 
   @override
   State<SearchAnimePage> createState() => _SearchAnimePageState();
@@ -65,6 +69,19 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
     context.read<AnimeProvider>().clearSearch();
   }
 
+  /// 当前状态的 UI 标签
+  String get _statusLabel {
+    switch (widget.defaultStatus) {
+      case 'watching':
+        return '在看';
+      case 'completed':
+        return '已看完';
+      case 'plan':
+      default:
+        return '想看';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -79,7 +96,8 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(isDesktop ? 24 : 0),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: isDesktop ? 16 : 0, sigmaY: isDesktop ? 16 : 0),
+          filter: ImageFilter.blur(
+              sigmaX: isDesktop ? 16 : 0, sigmaY: isDesktop ? 16 : 0),
           child: Container(
             width: isDesktop ? 600 : double.infinity,
             constraints: isDesktop
@@ -88,7 +106,10 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
             decoration: isDesktop
                 ? BoxDecoration(
                     color: isDark
-                        ? Theme.of(context).colorScheme.surface.withOpacity(0.92)
+                        ? Theme.of(context)
+                            .colorScheme
+                            .surface
+                            .withOpacity(0.92)
                         : Colors.white.withOpacity(0.92),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
@@ -219,6 +240,7 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
   }
 
   /// 处理添加操作：防重 + Loading + Toast + 返回信号
+  /// BUG 修复：使用 [widget.defaultStatus] 动态传入状态
   Future<void> _handleAdd(
     AnimeProvider provider,
     SearchResult result,
@@ -227,7 +249,10 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
 
     setState(() => _addingIds.add(result.bangumiId));
 
-    final success = await provider.addAnimeFromSearch(result);
+    final success = await provider.addAnimeFromSearch(
+      result,
+      status: widget.defaultStatus,
+    );
 
     if (mounted) {
       setState(() => _addingIds.remove(result.bangumiId));
@@ -239,14 +264,15 @@ class _SearchAnimePageState extends State<SearchAnimePage> {
 
     if (success) {
       Fluttertoast.showToast(
-        msg: '「${result.title}」已添加到想看',
+        msg: '「${result.title}」已添加到$_statusLabel',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: scheme.secondary,
         textColor: scheme.onPrimary,
         fontSize: 14,
       );
-      Navigator.pop(context, 'plan');
+      // BUG 修复：返回实际使用的 status，主页面据此处理后续逻辑
+      Navigator.pop(context, widget.defaultStatus);
     } else {
       Fluttertoast.showToast(
         msg: '添加失败: ${provider.error}',
