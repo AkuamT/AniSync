@@ -7,6 +7,10 @@ class ApiEndpoints {
   // 番剧搜索（外部数据源）
   static const String bangumiSearch = '/api/bangumi/search';
 
+  // 导出 / 导入
+  static const String animeExport = '/api/anime/export/all';
+  static const String animeImport = '/api/anime/import';
+
   // 健康检查
   static const String health = '/api/health';
 }

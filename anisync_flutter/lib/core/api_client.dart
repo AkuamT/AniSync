@@ -133,4 +133,27 @@ class ApiClient {
         .map((e) => SearchResult.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  // ============ 导出 / 导入 API ============
+
+  /// 导出所有番剧数据
+  Future<Map<String, dynamic>> exportAnime() async {
+    final response = await _request(
+      () => _dio.get(ApiEndpoints.animeExport),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// 导入番剧数据，返回导入结果
+  Future<Map<String, dynamic>> importAnime(
+    List<Map<String, dynamic>> animeList,
+  ) async {
+    final response = await _request(
+      () => _dio.post(
+        ApiEndpoints.animeImport,
+        data: {'anime_list': animeList},
+      ),
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }

@@ -92,7 +92,8 @@
       "Bash(dir \"%LOCALAPPDATA%\\\\Pub\\\\Cache\\\\hosted\\\\\" 2>/dev/null | grep reorderable; dir \"%USERPROFILE%\\\\.pub-cache\\\\hosted\\\\\")",
       "Bash(dir \"C:\\\\Users\\\\Akuam\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\\" 2>/dev/null | grep reorderable)",
       "Read(//c/Users/Akuam/AppData/Local/Pub/Cache/**)",
-      "Read(//c/Users/Akuam/**)"
+      "Read(//c/Users/Akuam/**)",
+      "Bash(npx vite *)"
     ]
   }
 }
